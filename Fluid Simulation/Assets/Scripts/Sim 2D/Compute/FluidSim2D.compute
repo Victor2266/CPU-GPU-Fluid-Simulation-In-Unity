@@ -4,7 +4,7 @@
 #pragma kernel CalculatePressureForce
 #pragma kernel CalculateViscosity
 #pragma kernel UpdatePositions
-#pargma kernel UnifiedDPV
+#pragma kernel UnifiedDPV
 
 // Includes
 #include "./FluidMaths2D.hlsl"
@@ -342,7 +342,7 @@ void UpdatePositions(uint3 id : SV_DispatchThreadID)
 }
 
 [numthreads(NumThreads, 1, 1)]
-void UnifiedKernel(uint3 id : SV_DispatchThreadID)
+void UnifiedDPV(uint3 id : SV_DispatchThreadID)
 {
 	if (id.x >= numParticles) return;
 
