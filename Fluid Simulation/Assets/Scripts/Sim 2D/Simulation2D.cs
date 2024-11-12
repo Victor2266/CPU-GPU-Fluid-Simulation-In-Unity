@@ -87,6 +87,7 @@ public class Simulation2D : MonoBehaviour
     const int pressureKernel = 3;
     const int viscosityKernel = 4;
     const int updatePositionKernel = 5;
+    const int unifiedKernel = 6; // Trying to combine density, pressure, and viscosity
 
     // State
     bool isPaused;
@@ -189,6 +190,7 @@ public class Simulation2D : MonoBehaviour
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: externalForcesKernel);
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: spatialHashKernel);
         gpuSort.SortAndCalculateOffsets();
+        //ComputeHelper.Dispatch(compute, numParticles, kernelIndex: unifiedKernel);
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: densityKernel);
         //compute the pressure and viscosity on CPU
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: pressureKernel);

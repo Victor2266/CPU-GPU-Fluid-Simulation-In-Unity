@@ -4,6 +4,7 @@
 #pragma kernel CalculatePressureForce
 #pragma kernel CalculateViscosity
 #pragma kernel UpdatePositions
+#pargma kernel UnifiedDPV
 
 // Includes
 #include "./FluidMaths2D.hlsl"
@@ -338,4 +339,78 @@ void UpdatePositions(uint3 id : SV_DispatchThreadID)
 
 	Positions[id.x] += Velocities[id.x] * deltaTime;
 	HandleCollisions(id.x);
+}
+
+[numthreads(NumThreads, 1, 1)]
+void UnifiedKernel(uint3 id : SV_DispatchThreadID)
+{
+	if (id.x >= numParticles) return;
+
+	// Common variables
+	float2 pos = PredictedPositions[id.x];
+	float density = 0;
+	float densityNear = 0;
+	float2 pressureForce = 0;
+	float2 viscosityForce = 0;
+	float2 velocity = Velocities[id.x];
+	float sqrRadius = smoothingRadius * smoothingRadius;
+	int2 originCell = GetCell2D(pos, smoothingRadius);
+
+	// First, calculate density and neighbors in a single loop
+	for (int i = 0; i < 9; i++)
+	{
+		uint hash = HashCell2D(originCell + offsets2D[i]);
+		uint key = KeyFromHash(hash, numParticles);
+		uint currIndex = SpatialOffsets[key];
+
+		while (currIndex < numParticles)
+		{
+			uint3 indexData = SpatialIndices[currIndex];
+			currIndex++;
+			// Exit if no longer looking at correct bin
+			if (indexData[2] != key) break;
+			// Skip if hash does not match
+			if (indexData[1] != hash) continue;
+
+			uint neighbourIndex = indexData[0];
+			// Skip if looking at self
+			if (neighbourIndex == id.x) continue;
+
+			float2 neighbourPos = PredictedPositions[neighbourIndex];
+			float2 offsetToNeighbour = neighbourPos - pos;
+			float sqrDstToNeighbour = dot(offsetToNeighbour, offsetToNeighbour);
+
+			// Skip if not within radius
+			if (sqrDstToNeighbour > sqrRadius) continue;
+
+			float dst = sqrt(sqrDstToNeighbour);
+			float2 dirToNeighbour = dst > 0 ? offsetToNeighbour / dst : float2(0, 1);
+
+			// Calculate densities
+			density += DensityKernel(dst, smoothingRadius);
+			densityNear += NearDensityKernel(dst, smoothingRadius);
+
+			// Calculate pressure forces
+			float neighbourDensity = Densities[neighbourIndex][0];
+			float neighbourNearDensity = Densities[neighbourIndex][1];
+			float neighbourPressure = PressureFromDensity(neighbourDensity);
+			float neighbourNearPressure = NearPressureFromDensity(neighbourNearDensity);
+			float sharedPressure = (PressureFromDensity(density) + neighbourPressure) * 0.5;
+			float sharedNearPressure = (NearPressureFromDensity(densityNear) + neighbourNearPressure) * 0.5;
+
+			pressureForce += dirToNeighbour * DensityDerivative(dst, smoothingRadius) * sharedPressure / neighbourDensity;
+			pressureForce += dirToNeighbour * NearDensityDerivative(dst, smoothingRadius) * sharedNearPressure / neighbourNearDensity;
+
+			// Calculate viscosity forces
+			float2 neighbourVelocity = Velocities[neighbourIndex];
+			viscosityForce += (neighbourVelocity - velocity) * ViscosityKernel(dst, smoothingRadius);
+		}
+	}
+
+	// Save density data
+	Densities[id.x] = float2(density, densityNear);
+
+	// Update velocities based on pressure and viscosity forces
+	float2 acceleration = pressureForce / density;
+	Velocities[id.x] += (acceleration + viscosityForce * viscosityStrength) * deltaTime;
 }
