@@ -346,6 +346,111 @@ void UnifiedDPV(uint3 id : SV_DispatchThreadID)
 {
 	if (id.x >= numParticles) return;
 
+	// Density
+	float2 pos = PredictedPositions[id.x];
+	Densities[id.x] = CalculateDensity(pos);
+
+	// Pressure force test
+	float density = Densities[id.x][0];
+	float densityNear = Densities[id.x][1];
+	float pressure = PressureFromDensity(density);
+	float nearPressure = NearPressureFromDensity(densityNear);
+	float2 pressureForce = 0;
+
+	int2 originCell = GetCell2D(pos, smoothingRadius);
+	float sqrRadius = smoothingRadius * smoothingRadius;
+
+	// Neighbour search
+	for (int i = 0; i < 9; i++)
+	{
+		uint hash = HashCell2D(originCell + offsets2D[i]);
+		uint key = KeyFromHash(hash, numParticles);
+		uint currIndex = SpatialOffsets[key];
+
+		while (currIndex < numParticles)
+		{
+			uint3 indexData = SpatialIndices[currIndex];
+			currIndex++;
+			// Exit if no longer looking at correct bin
+			if (indexData[2] != key) break;
+			// Skip if hash does not match
+			if (indexData[1] != hash) continue;
+
+			uint neighbourIndex = indexData[0];
+			// Skip if looking at self
+			if (neighbourIndex == id.x) continue;
+
+			float2 neighbourPos = PredictedPositions[neighbourIndex];
+			float2 offsetToNeighbour = neighbourPos - pos;
+			float sqrDstToNeighbour = dot(offsetToNeighbour, offsetToNeighbour);
+
+			// Skip if not within radius
+			if (sqrDstToNeighbour > sqrRadius) continue;
+
+			// Calculate pressure force
+			float dst = sqrt(sqrDstToNeighbour);
+			float2 dirToNeighbour = dst > 0 ? offsetToNeighbour / dst : float2(0, 1);
+
+			float neighbourDensity = Densities[neighbourIndex][0];
+			float neighbourNearDensity = Densities[neighbourIndex][1];
+			float neighbourPressure = PressureFromDensity(neighbourDensity);
+			float neighbourNearPressure = NearPressureFromDensity(neighbourNearDensity);
+
+			float sharedPressure = (pressure + neighbourPressure) * 0.5;
+			float sharedNearPressure = (nearPressure + neighbourNearPressure) * 0.5;
+
+			pressureForce += dirToNeighbour * DensityDerivative(dst, smoothingRadius) * sharedPressure / neighbourDensity;
+			pressureForce += dirToNeighbour * NearDensityDerivative(dst, smoothingRadius) * sharedNearPressure / neighbourNearDensity;
+		}
+	}
+
+	float2 acceleration = pressureForce / density;
+	Velocities[id.x] += acceleration * deltaTime;
+
+	float2 viscosityForce = 0;
+	float2 velocity = Velocities[id.x];
+
+	for (int i = 0; i < 9; i++)
+	{
+		uint hash = HashCell2D(originCell + offsets2D[i]);
+		uint key = KeyFromHash(hash, numParticles);
+		uint currIndex = SpatialOffsets[key];
+
+		while (currIndex < numParticles)
+		{
+			uint3 indexData = SpatialIndices[currIndex];
+			currIndex++;
+			// Exit if no longer looking at correct bin
+			if (indexData[2] != key) break;
+			// Skip if hash does not match
+			if (indexData[1] != hash) continue;
+
+			uint neighbourIndex = indexData[0];
+			// Skip if looking at self
+			if (neighbourIndex == id.x) continue;
+
+			float2 neighbourPos = PredictedPositions[neighbourIndex];
+			float2 offsetToNeighbour = neighbourPos - pos;
+			float sqrDstToNeighbour = dot(offsetToNeighbour, offsetToNeighbour);
+
+			// Skip if not within radius
+			if (sqrDstToNeighbour > sqrRadius) continue;
+
+			float dst = sqrt(sqrDstToNeighbour);
+			float2 neighbourVelocity = Velocities[neighbourIndex];
+			viscosityForce += (neighbourVelocity - velocity) * ViscosityKernel(dst, smoothingRadius);
+		}
+
+	}
+	Velocities[id.x] += viscosityForce * viscosityStrength * deltaTime;
+}
+
+/*
+[numthreads(NumThreads, 1, 1)]
+void UnifiedDPV(uint3 id : SV_DispatchThreadID)
+{
+	if (id.x >= numParticles) return;
+
 	// Common variables
 	float2 pos = PredictedPositions[id.x];
 	float density = 0;
@@ -413,4 +518,4 @@ void UnifiedDPV(uint3 id : SV_DispatchThreadID)
 	// Update velocities based on pressure and viscosity forces
 	float2 acceleration = pressureForce / density;
 	Velocities[id.x] += (acceleration + viscosityForce * viscosityStrength) * deltaTime;
-}
+}*/
