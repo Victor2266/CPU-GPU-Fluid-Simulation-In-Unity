@@ -14,7 +14,7 @@ public class CPUSimCalc {
     public float2[] Densities;
     public float2[] Positions;
     public float2[] PredictedPositions;
-    public uint[] GridsToCalc = new uint[1];
+    public uint[] GridsToCalc = new uint[1]; // Currently set to 1 for testing. only trying to have CPU compute 1 grid
 
     SpatialHashCPU spatialHashCPU = new();
 

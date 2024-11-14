@@ -81,6 +81,7 @@ public class Simulation2D : MonoBehaviour
     ComputeBuffer spatialOffsets;
     GPUSort gpuSort;
 
+    CPUSimCalc cpuSimCalc;
 
     // Kernel IDs
     const int externalForcesKernel = 0;
@@ -132,7 +133,7 @@ public class Simulation2D : MonoBehaviour
         gpuSort = new();
         gpuSort.SetBuffers(spatialIndices, spatialOffsets);
 
-
+        cpuSimCalc = new();
         // Init display
         display.Init(this);
     }
@@ -188,7 +189,7 @@ public class Simulation2D : MonoBehaviour
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: externalForcesKernel);
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: spatialHashKernel);
         gpuSort.SortAndCalculateOffsets();
-        //compute the pressure and viscosity on CPU
+        //compute the pressure and viscosity on CPU starts here
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: densityKernel);
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: pressureKernel);
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: viscosityKernel);
@@ -199,16 +200,27 @@ public class Simulation2D : MonoBehaviour
     void UpdateSettings(float deltaTime)
     {
         compute.SetFloat("deltaTime", deltaTime);
+        cpuSimCalc.deltaTime = deltaTime;
         compute.SetFloat("gravity", gravity);
+        cpuSimCalc.gravity = gravity;
         compute.SetFloat("collisionDamping", collisionDamping);
+        cpuSimCalc.collisionDamping = collisionDamping;
         compute.SetFloat("smoothingRadius", smoothingRadius);
+        cpuSimCalc.initialize(numParticles, smoothingRadius);
         compute.SetFloat("targetDensity", targetDensity);
+        cpuSimCalc.targetDensity = targetDensity;
         compute.SetFloat("pressureMultiplier", pressureMultiplier);
+        cpuSimCalc.pressureMultiplier = pressureMultiplier;
         compute.SetFloat("nearPressureMultiplier", nearPressureMultiplier);
+        cpuSimCalc.nearPressureMultiplier = nearPressureMultiplier;
         compute.SetFloat("viscosityStrength", viscosityStrength);
+        cpuSimCalc.viscosityStrength = viscosityStrength;
         compute.SetVector("boundsSize", boundsSize);
+        cpuSimCalc.boundsSize = boundsSize;
         compute.SetVector("obstacleSize", obstacleSize);
+        cpuSimCalc.obstacleSize = obstacleSize;
         compute.SetVector("obstacleCentre", obstacleCentre);
+        cpuSimCalc.obstacleCentre = obstacleCentre;
 
         compute.SetFloat("Poly6ScalingFactor", 4 / (Mathf.PI * Mathf.Pow(smoothingRadius, 8)));
         compute.SetFloat("SpikyPow3ScalingFactor", 10 / (Mathf.PI * Mathf.Pow(smoothingRadius, 5)));
@@ -228,8 +240,11 @@ public class Simulation2D : MonoBehaviour
         }
 
         compute.SetVector("interactionInputPoint", mousePos);
+        cpuSimCalc.interactionInputPoint = mousePos;
         compute.SetFloat("interactionInputStrength", currInteractStrength);
+        cpuSimCalc.interactionInputStrength = currInteractStrength;
         compute.SetFloat("interactionInputRadius", interactionRadius);
+        cpuSimCalc.interactionInputRadius = interactionRadius;
     }
 
     void SetInitialBufferData(ParticleSpawner.ParticleSpawnData spawnData)
