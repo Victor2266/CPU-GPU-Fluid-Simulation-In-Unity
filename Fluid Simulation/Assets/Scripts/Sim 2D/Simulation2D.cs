@@ -50,6 +50,7 @@ public class Simulation2D : MonoBehaviour
     public Vector2 boundsSize;
     public Vector2 obstacleSize;
     public Vector2 obstacleCentre;
+    public int numParticlesForCPU;
 
     [Header("Interaction Settings")]
     public float interactionRadius;
@@ -79,6 +80,7 @@ public class Simulation2D : MonoBehaviour
     ComputeBuffer spatialIndices;
     ComputeBuffer spatialOffsets;
     GPUSort gpuSort;
+
 
     // Kernel IDs
     const int externalForcesKernel = 0;
@@ -111,9 +113,6 @@ public class Simulation2D : MonoBehaviour
         predictedPositionBuffer = ComputeHelper.CreateStructuredBuffer<float2>(numParticles);
         velocityBuffer = ComputeHelper.CreateStructuredBuffer<float2>(numParticles);
         densityBuffer = ComputeHelper.CreateStructuredBuffer<float2>(numParticles);
-        
-        
-        
         spatialIndices = ComputeHelper.CreateStructuredBuffer<uint3>(numParticles);
         spatialOffsets = ComputeHelper.CreateStructuredBuffer<uint>(numParticles);
 
@@ -189,8 +188,8 @@ public class Simulation2D : MonoBehaviour
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: externalForcesKernel);
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: spatialHashKernel);
         gpuSort.SortAndCalculateOffsets();
-        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: densityKernel);
         //compute the pressure and viscosity on CPU
+        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: densityKernel);
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: pressureKernel);
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: viscosityKernel);
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: updatePositionKernel);

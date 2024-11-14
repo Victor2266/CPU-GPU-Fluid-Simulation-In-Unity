@@ -55,11 +55,19 @@ void Sort (uint3 id : SV_DispatchThreadID)
 // 
 // NOTE: offsets buffer must filled with values equal to (or greater than) its length to ensure that this works correctly
 RWStructuredBuffer<uint> Offsets;
+RWStructuredBuffer<uint> MostParticles;
 
 [numthreads(128, 1, 1)]
 void CalculateOffsets(uint3 id : SV_DispatchThreadID)
 {
-	if (id.x >= numEntries) { return; }
+	if (id.x > numEntries) { return; }
+
+	if (id.x == numEntries){
+		uint key2 = Entries[id.x-1].key;
+		uint particles = ((id.x-1) - Offsets[key2]);
+		if(particles > MostParticles[0]) { MostParticles[0] = id.x; }
+		return;
+	}
 
 	uint i = id.x;
 	uint null = numEntries;
@@ -70,5 +78,7 @@ void CalculateOffsets(uint3 id : SV_DispatchThreadID)
 	if (key != keyPrev)
 	{
 		Offsets[key] = i;
+		if((Offsets[key] - Offsets[keyPrev]) > MostParticles[0]) { MostParticles[0] = id.x; }
 	}
+	return;
 }

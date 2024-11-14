@@ -9,6 +9,8 @@ public class GPUSort
     readonly ComputeShader sortCompute;
     ComputeBuffer indexBuffer;
 
+    ComputeBuffer mostParticlesBuffer = ComputeHelper.CreateStructuredBuffer<uint>(1); 
+    public uint[] mostParticlesLocation = {0};
     public GPUSort()
     {
         sortCompute = ComputeHelper.LoadComputeShader("BitonicMergeSort");
@@ -17,10 +19,12 @@ public class GPUSort
     public void SetBuffers(ComputeBuffer indexBuffer, ComputeBuffer offsetBuffer)
     {
         this.indexBuffer = indexBuffer;
-
+        mostParticlesLocation[0] = 0;
         sortCompute.SetBuffer(sortKernel, "Entries", indexBuffer);
         ComputeHelper.SetBuffer(sortCompute, offsetBuffer, "Offsets", calculateOffsetsKernel);
         ComputeHelper.SetBuffer(sortCompute, indexBuffer, "Entries", calculateOffsetsKernel);
+        ComputeHelper.SetBuffer(sortCompute, mostParticlesBuffer, "MostParticles", calculateOffsetsKernel);
+        mostParticlesBuffer.SetData(mostParticlesLocation);
     }
 
     // Sorts given buffer of integer values using bitonic merge sort
@@ -54,8 +58,11 @@ public class GPUSort
     public void SortAndCalculateOffsets()
     {
         Sort();
-
+        mostParticlesLocation[0] = 0;
+        mostParticlesBuffer.SetData(mostParticlesLocation);
         ComputeHelper.Dispatch(sortCompute, indexBuffer.count, kernelIndex: calculateOffsetsKernel);
+        mostParticlesBuffer.GetData(mostParticlesLocation);
+        Debug.Log("mostParticlesCellSize = " + mostParticlesLocation[0]);
     }
 
 }
