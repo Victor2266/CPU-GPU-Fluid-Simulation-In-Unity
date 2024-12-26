@@ -113,51 +113,55 @@ public float NearPressureFromDensity(float nearDensity)
 
 public struct PressureCalcCPU : IJob
 {
-    public NativeArray<uint> index;
-    float density = CPUParticleKernel.particleData[index].density[0];
-    float density = CPUParticleKernel.particleData[index].density[1];
-    float pressure = PressureFromDensity(density);
-    floar nearPressure = NearPressureFromDensity(nearDensity);
-    float2 pressureForce = 0;
+    public void Execute(){
 
-    float2 pos = CPUParticleKernel.particleData[index].predictedPosition;
-    int2 originCell = SpatialHashCPU.GetCell2D(CPUParticleKernel.particleData[index].position, CPUParticleKernel.smoothingRadius);
-    float sqrRadius = CPUParticleKernel.smoothingRadius * CPUParticleKernel.smoothingRadius;
-    //neighbour search
-    for (int i = 0; i < 9; i++)
-    {
-        uint hash = SpatialHashCPU.HashCell2D(originCell + SpatialHashCPU.offsets2D[i]);
-        uint key = SpatialHashCPU.KeyFromHash(hash, CPUParticleKernel.numParticles);
-        uint currIndex = CPUParticleKernel.spatialOffsetsCPU[key];
-        while (currIndex != CPUParticleKernel.numParticles){
-            uint3 indexData = CPUParticleKernel.spatialIndicesCPU[currIndex];
-            currIndex++;
-            // Exit if no longer looking at correct bin
-            if (indexData[2] != key) break;
-            // Skip if hash does not match
-            if (indexData[1] != hash) continue;
-            uint neighbourIndex = indexData[0];
-            float2 neighbourPos = CPUParticleKernel.particleData[neighbourIndex].predictedPosition;
-            float2 offsetToNeighbour = neighbourPos - CPUParticleKernel.particleData[index].position;
-            float sqrDstToNeighbour = FluidMaths2DCPUAoS.Dot(offsetToNeighbour, offsetToNeighbour);
-            // Skip if not within radius
-    		if (sqrDstToNeighbour > sqrRadius) continue;
-            // Calculate pressure force
-			float dst = (float)Math.Sqrt(sqrDstToNeighbour);
-			float2 dirToNeighbour = dst > 0 ? offsetToNeighbour / dst : new float2(0, 1);
-            float neighbourDensity = CPUParticleKernel.particleData[neighbourIndex].density[0];
-            float neighbourNearDensity = CPUParticleKernel.particleData[neighbourIndex].density[1];
-            float neighbourPressure = PressureFromDensity(neighbourDensity);
-            float neighbourNearPressure = PressureFromDensity(neighbourNearDensity);
-            float sharedPressure = (pressure + neighbourPressure) / 0.5;
-            float sharedNearPressure = (nearPressure + neighbourNearPressure) / 0.5;
-            pressureForce += dirToNeighbour * DensityDerivative(DensityCalcCPU, smoothingRadius) * sharedPressure / neighbourDensity;
-            pressureForce += dirToNeighbour * NearDensityDerivative(DensityCalcCPU, smoothingRadius) * sharedNearPressure / neighbourNearDensity;
+        
+        public NativeArray<uint> index;
+        float density = CPUParticleKernel.particleData[index].density[0];
+        float density = CPUParticleKernel.particleData[index].density[1];
+        float pressure = PressureFromDensity(density);
+        floar nearPressure = NearPressureFromDensity(nearDensity);
+        float2 pressureForce = 0;
+
+        float2 pos = CPUParticleKernel.particleData[index].predictedPosition;
+        int2 originCell = SpatialHashCPU.GetCell2D(CPUParticleKernel.particleData[index].position, CPUParticleKernel.smoothingRadius);
+        float sqrRadius = CPUParticleKernel.smoothingRadius * CPUParticleKernel.smoothingRadius;
+        //neighbour search
+        for (int i = 0; i < 9; i++)
+        {
+            uint hash = SpatialHashCPU.HashCell2D(originCell + SpatialHashCPU.offsets2D[i]);
+            uint key = SpatialHashCPU.KeyFromHash(hash, CPUParticleKernel.numParticles);
+            uint currIndex = CPUParticleKernel.spatialOffsetsCPU[key];
+            while (currIndex != CPUParticleKernel.numParticles){
+                uint3 indexData = CPUParticleKernel.spatialIndicesCPU[currIndex];
+                currIndex++;
+                // Exit if no longer looking at correct bin
+                if (indexData[2] != key) break;
+                // Skip if hash does not match
+                if (indexData[1] != hash) continue;
+                uint neighbourIndex = indexData[0];
+                float2 neighbourPos = CPUParticleKernel.particleData[neighbourIndex].predictedPosition;
+                float2 offsetToNeighbour = neighbourPos - CPUParticleKernel.particleData[index].position;
+                float sqrDstToNeighbour = FluidMaths2DCPUAoS.Dot(offsetToNeighbour, offsetToNeighbour);
+                // Skip if not within radius
+        		if (sqrDstToNeighbour > sqrRadius) continue;
+                // Calculate pressure force
+    			float dst = (float)Math.Sqrt(sqrDstToNeighbour);
+    			float2 dirToNeighbour = dst > 0 ? offsetToNeighbour / dst : new float2(0, 1);
+                float neighbourDensity = CPUParticleKernel.particleData[neighbourIndex].density[0];
+                float neighbourNearDensity = CPUParticleKernel.particleData[neighbourIndex].density[1];
+                float neighbourPressure = PressureFromDensity(neighbourDensity);
+                float neighbourNearPressure = PressureFromDensity(neighbourNearDensity);
+                float sharedPressure = (pressure + neighbourPressure) / 0.5;
+                float sharedNearPressure = (nearPressure + neighbourNearPressure) / 0.5;
+                pressureForce += dirToNeighbour * DensityDerivative(DensityCalcCPU, smoothingRadius) * sharedPressure / neighbourDensity;
+                pressureForce += dirToNeighbour * NearDensityDerivative(DensityCalcCPU, smoothingRadius) * sharedNearPressure / neighbourNearDensity;
+            }
         }
+
+        float 2 acceleration = pressureForce / density;
+        CPUParticleKernel.particleData[index].velocity += acceleration * CPUParticleKernel.deltaTime;// may want to move the write somewhere else.
     }
-    
-    float 2 acceleration = pressureForce / density;
-    CPUParticleKernel.particleData[index].velocity += acceleration * CPUParticleKernel.deltaTime;
 }
 
 public struct CPUParticleKernel : MonoBehaviour
