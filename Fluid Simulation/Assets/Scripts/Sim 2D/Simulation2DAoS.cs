@@ -3,6 +3,7 @@ using Unity.Mathematics;
 using System.Runtime.InteropServices;
 using System;
 using UnityEngine.UIElements;
+using Unity.VisualScripting.FullSerializer;
 
 //Defining Structs
 [System.Serializable]
@@ -109,6 +110,8 @@ public class Simulation2DAoS : MonoBehaviour
     const int viscosityKernel = 4;
     const int updatePositionKernel = 5;
 
+    //CPUKERNEL
+    public CPUParticleKernel CPUKernel;
     // State
     bool isPaused;
     ParticleSpawner.ParticleSpawnData spawnData;
@@ -116,9 +119,10 @@ public class Simulation2DAoS : MonoBehaviour
 
     public int numParticles { get; private set; }
 
-
     void Start()
     {
+        //initialized CPUKernel
+        CPUKernel = new CPUParticleKernel();
         Debug.Log("Controls: Space = Play/Pause, R = Reset, LMB = Attract, RMB = Repel");
 
         float deltaTime = 1 / 60f;
@@ -144,11 +148,13 @@ public class Simulation2DAoS : MonoBehaviour
         spatialIndices = ComputeHelper.CreateStructuredBuffer<uint3>(numParticles);
         spatialOffsets = ComputeHelper.CreateStructuredBuffer<uint>(numParticles);
 
+        
         // Set buffer data
         SetInitialBufferData(spawnData);
 
         // Init compute
         ComputeHelper.SetBuffer(compute, particleBuffer, "Particles", externalForcesKernel, spatialHashKernel, densityKernel, pressureKernel, viscosityKernel, updatePositionKernel);
+        
         //ComputeHelper.SetBuffer(compute, positionBuffer, "Positions", externalForcesKernel, updatePositionKernel);
         //ComputeHelper.SetBuffer(compute, predictedPositionBuffer, "PredictedPositions", externalForcesKernel, spatialHashKernel, densityKernel, pressureKernel, viscosityKernel);
         ComputeHelper.SetBuffer(compute, spatialIndices, "SpatialIndices", spatialHashKernel, densityKernel, pressureKernel, viscosityKernel);
@@ -215,13 +221,38 @@ public class Simulation2DAoS : MonoBehaviour
 
     void RunSimulationStep()
     {
+        
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: externalForcesKernel);
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: spatialHashKernel);
+
+        //CPUKERNEL
+        //simulation is setup to run all particles on CPU for testing purposes. can be commented out for normal use
         gpuSort.SortAndCalculateOffsets();
-        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: densityKernel);
+        particleBuffer.GetData(CPUKernel.particleData);
+        Debug.Log("Pass");
+        Debug.Log(CPUKernel.particleData.Length);
+        boxCollidersBuffer.GetData(CPUKernel.boxCollidersData);
+        circleCollidersBuffer.GetData(CPUKernel.circleCollidersData);
+        spatialIndices.GetData(CPUKernel.spatialIndicesCPU);
+        spatialOffsets.GetData(CPUKernel.spatialOffsetsCPU);
+        SpatialHashCPU sHash = new SpatialHashCPU();
+        for(int i=0; i< numParticles; i++){
+            CPUKernel.CPUOriginCells[i] = sHash.GetCell2D(CPUKernel.particleData[i].position, smoothingRadius);
+        }
+        int result = CPUKernel.ExecuteCPUComputeB();
+
+        particleBuffer.SetData(CPUKernel.particleData);
+        
+        for(int i=0; i<numParticles; i++){
+            particleData[i] = CPUKernel.particleData[i];
+        }
+
+        //uncomment some of these to get normal operation
+
+        //ComputeHelper.Dispatch(compute, numParticles, kernelIndex: densityKernel);
         //compute the pressure and viscosity on CPU
-        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: pressureKernel);
-        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: viscosityKernel);
+        //ComputeHelper.Dispatch(compute, numParticles, kernelIndex: pressureKernel);
+        //ComputeHelper.Dispatch(compute, numParticles, kernelIndex: viscosityKernel);
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: updatePositionKernel);
 
     }
@@ -258,6 +289,7 @@ public class Simulation2DAoS : MonoBehaviour
 
     void UpdateSettings(float deltaTime)
     {
+        
         compute.SetFloat("deltaTime", deltaTime);
         compute.SetFloat("gravity", gravity);
         compute.SetFloat("collisionDamping", collisionDamping);
@@ -290,6 +322,30 @@ public class Simulation2DAoS : MonoBehaviour
         compute.SetVector("interactionInputPoint", mousePos);
         compute.SetFloat("interactionInputStrength", currInteractStrength);
         compute.SetFloat("interactionInputRadius", interactionRadius);
+
+        //CPUKERNEL
+        //creates settings struct to be sent to kernel, this is updated every update cycle same as GPU.
+        kernelSettings newSettings = new kernelSettings();
+        newSettings.deltaTime = Time.fixedDeltaTime;
+        newSettings.gravity = gravity;
+        newSettings.collisionDamping = collisionDamping;
+        newSettings.smoothingRadius = smoothingRadius;
+        newSettings.targetDensity = targetDensity;
+        newSettings.pressureMultiplier = pressureMultiplier;
+        newSettings.nearPressureMultiplier = nearPressureMultiplier;
+        newSettings.viscosityStrength = viscosityStrength;
+        newSettings.boundsSize = boundsSize;
+        newSettings.numBoxColliders = (uint) boxColliders.Length;
+        newSettings.numCircleColliders = (uint) circleColliders.Length;
+        newSettings.interactionInputPoint = 0;
+        newSettings.interactionInputStrength = 0;
+        newSettings.interactionInputRadius = interactionRadius;
+        newSettings.numCPUCells = (uint) numParticles;
+        newSettings.numParticles = (uint) numParticles;
+        newSettings.MAX_COLLIDERS = MAX_COLLIDERS;
+        CPUKernel.settings = newSettings;
+        CPUKernel.InitializeCPUKernelSettings();
+
     }
 
     void SetInitialBufferData(ParticleSpawner.ParticleSpawnData spawnData)
