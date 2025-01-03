@@ -29,7 +29,7 @@ RWStructuredBuffer<float2> Positions;
 RWStructuredBuffer<float2> PredictedPositions;
 RWStructuredBuffer<float2> Velocities;
 RWStructuredBuffer<float2> Densities; // Density, Near Density
-RWStructuredBuffer<uint3> SpatialIndices; // used for spatial hashing
+RWStructuredBuffer<uint2> SpatialIndices; // used for spatial hashing
 RWStructuredBuffer<uint> SpatialOffsets; // used for spatial hashing
 RWStructuredBuffer<OrientedBox> BoxColliders;
 RWStructuredBuffer<Circle> CircleColliders;
@@ -88,15 +88,12 @@ float2 CalculateDensity(float2 pos)
 	for (int i = 0; i < 9; i++)
 	{
 		uint hash = HashCell2D(originCell + offsets2D[i]);
-		uint key = KeyFromHash(hash, numParticles);
-		uint currIndex = SpatialOffsets[key];
+		uint currIndex = SpatialOffsets[hash];
 
 		while (currIndex < numParticles)
 		{
-			uint3 indexData = SpatialIndices[currIndex];
+			uint2 indexData = SpatialIndices[currIndex];
 			currIndex++;
-			// Exit if no longer looking at correct bin
-			if (indexData[2] != key) break;
 			// Skip if hash does not match
 			if (indexData[1] != hash) continue;
 
@@ -309,8 +306,7 @@ void UpdateSpatialHash (uint3 id : SV_DispatchThreadID)
 	uint index = id.x;
 	int2 cell = GetCell2D(PredictedPositions[index], smoothingRadius);
 	uint hash = HashCell2D(cell);
-	uint key = KeyFromHash(hash, numParticles);
-	SpatialIndices[id.x] = uint3(index, hash, key);
+	SpatialIndices[id.x] = uint2(index, hash);
 }
 
 [numthreads(NumThreads,1,1)]
@@ -341,15 +337,12 @@ void CalculatePressureForce (uint3 id : SV_DispatchThreadID)
 	for (int i = 0; i < 9; i ++)
 	{
 		uint hash = HashCell2D(originCell + offsets2D[i]);
-		uint key = KeyFromHash(hash, numParticles);
-		uint currIndex = SpatialOffsets[key];
+		uint currIndex = SpatialOffsets[hash];
 
 		while (currIndex < numParticles)
 		{
-			uint3 indexData = SpatialIndices[currIndex];
+			uint2 indexData = SpatialIndices[currIndex];
 			currIndex ++;
-			// Exit if no longer looking at correct bin
-			if (indexData[2] != key) break;
 			// Skip if hash does not match
 			if (indexData[1] != hash) continue;
 
@@ -403,15 +396,12 @@ void CalculateViscosity (uint3 id : SV_DispatchThreadID)
 	for (int i = 0; i < 9; i ++)
 	{
 		uint hash = HashCell2D(originCell + offsets2D[i]);
-		uint key = KeyFromHash(hash, numParticles);
-		uint currIndex = SpatialOffsets[key];
+		uint currIndex = SpatialOffsets[hash];
 
 		while (currIndex < numParticles)
 		{
-			uint3 indexData = SpatialIndices[currIndex];
+			uint2 indexData = SpatialIndices[currIndex];
 			currIndex ++;
-			// Exit if no longer looking at correct bin
-			if (indexData[2] != key) break;
 			// Skip if hash does not match
 			if (indexData[1] != hash) continue;
 
