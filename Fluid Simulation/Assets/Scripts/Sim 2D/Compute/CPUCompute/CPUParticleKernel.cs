@@ -74,7 +74,11 @@ public struct kernelSettings
 //Density kernel calculates density for a given particle index and puts resulting particle with updated density into result buffer
 public struct DensityCalcCPU : IJob
 {
+<<<<<<< Updated upstream
     public NativeArray<Particle> result;
+=======
+    public NativeSlice<Particle> result;
+>>>>>>> Stashed changes
     [ReadOnly]
     public NativeArray<int> index;
     [ReadOnly]
@@ -142,7 +146,11 @@ public struct HandleBoxCollision : IJob
     public NativeArray<int> index;
     public NativeArray<kernelSettings> kernelVariables;
     public NativeArray<Particle> particles;
+<<<<<<< Updated upstream
     public NativeArray<Particle> result;
+=======
+    public NativeSlice<Particle> result;
+>>>>>>> Stashed changes
     public NativeArray<OrientedBox> boxes;
     public void Execute()
     {
@@ -265,7 +273,11 @@ public struct HandleCollisionCalc : IJob
 //Pressure kernel calculates pressure using density data and puts resulting particle with updated pressure into the result buffer
 public struct CPUPressureCalc : IJob 
 {
+<<<<<<< Updated upstream
     public NativeArray<Particle> result;
+=======
+    public NativeSlice<Particle> result;
+>>>>>>> Stashed changes
     [ReadOnly]
     public NativeArray<int> index;
     [ReadOnly]
@@ -349,7 +361,11 @@ public struct CPUPressureCalc : IJob
 //see pressure and density
 public struct CPUViscosityCalc : IJob
 {
+<<<<<<< Updated upstream
     public NativeArray<Particle> result;
+=======
+    public NativeSlice<Particle> result;
+>>>>>>> Stashed changes
     [ReadOnly]
     public NativeArray<int> index;
     [ReadOnly]
@@ -416,6 +432,7 @@ public struct CPUViscosityCalc : IJob
 
 //needs updating.
 // Calls the density compute job on every particle in the given cell, currently need to figure out efficient way of storing the data
+<<<<<<< Updated upstream
 public struct CPUCellDensityExecuteManager : IJob 
 {
     public NativeArray<int2> cell;
@@ -424,6 +441,22 @@ public struct CPUCellDensityExecuteManager : IJob
     public NativeArray<OrientedBox> _boxBuffer;
     public NativeArray<kernelSettings> _variablesBuffer;
     public NativeArray<uint3> _spatialIndicesBuffer;
+=======
+public struct CPUCellExecuteManager : IJob 
+{
+    public NativeArray<Particle> resultBuffer; // Result buffer is copy of particle buffer but will contain all changes
+    [ReadOnly]
+    public NativeArray<uint> hash;
+    [ReadOnly]
+    public NativeArray<Particle> _particleBuffer;
+    [ReadOnly]
+    public NativeArray<OrientedBox> _boxBuffer;
+    [ReadOnly]
+    public NativeArray<kernelSettings> _variablesBuffer;
+    [ReadOnly]
+    public NativeArray<uint3> _spatialIndicesBuffer;
+    [ReadOnly]
+>>>>>>> Stashed changes
     public NativeArray<uint> _spatialOffsetsBuffer;
 
     public void Execute()
@@ -433,6 +466,7 @@ public struct CPUCellDensityExecuteManager : IJob
         FluidMaths2DCPUAoS FMath = new FluidMaths2DCPUAoS();
         FMath.setSmoothingRadius(settings.smoothingRadius);
         SpatialHashCPU SHash = new SpatialHashCPU();
+<<<<<<< Updated upstream
         uint hash = SHash.HashCell2D(cell[0]);
         int key = (int) SHash.KeyFromHash(hash, settings.numParticles);
         int currIndex = (int) _spatialOffsetsBuffer[key];
@@ -440,6 +474,18 @@ public struct CPUCellDensityExecuteManager : IJob
         List<DensityCalcCPU> densityCalcs = new List<DensityCalcCPU>();
         List<JobHandle> jobHandles = new List<JobHandle>(); //---If someone can figure out how to implement this as native list and have it work please do
         List<NativeArray<int>> particleIndices = new List<NativeArray<int>>();
+=======
+        //uint hash = SHash.HashCell2D(cell[0]);
+        int key = (int) SHash.KeyFromHash(hash[0], settings.numParticles);
+        int currIndex = (int) _spatialOffsetsBuffer[key];
+
+        List<DensityCalcCPU> densityCalcs = new List<DensityCalcCPU>();
+        List<CPUPressureCalc> pressureCalcs = new List<CPUPressureCalc>();
+        List<CPUViscosityCalc> viscosityCalcs = new List<CPUViscosityCalc>();
+        NativeList<JobHandle> jobHandles = new NativeList<JobHandle>(Allocator.TempJob); //---If someone can figure out how to implement this as native list and have it work please do
+        List<NativeArray<int>> particleIndices = new List<NativeArray<int>>();
+        List<NativeSlice<Particle>> particleSlices = new List<NativeSlice<Particle>>();
+>>>>>>> Stashed changes
         int currentParticle = 0;
         while (currIndex != settings.numParticles){
             uint3 indexData = _spatialIndicesBuffer[currIndex];
@@ -447,17 +493,27 @@ public struct CPUCellDensityExecuteManager : IJob
             // Exit if no longer looking at correct bin
             if (indexData[2] != key) break;
             // Skip if hash does not match
+<<<<<<< Updated upstream
             if (indexData[1] != hash) continue;
 
             int neighbourIndex = (int) indexData[0];
             NativeArray<int> TempArray = new NativeArray<int>(1, Allocator.TempJob);
             TempArray[0] = currentParticle;
             particleIndices.Add(TempArray);
+=======
+            if (indexData[1] != hash[0]) continue;
+
+            NativeArray<int> temparray = new NativeArray<int>(1, Allocator.TempJob);
+            temparray[0] = currIndex;
+            particleIndices.Add(temparray);
+            particleSlices.Add(new NativeSlice<Particle>(resultBuffer, currIndex, 1));
+>>>>>>> Stashed changes
             densityCalcs.Add(new DensityCalcCPU{
                 index = particleIndices[currentParticle],
                 kernelVariables = _variablesBuffer,
                 particles = _particleBuffer, //add result buffer
                 spatialIndices = _spatialIndicesBuffer,
+<<<<<<< Updated upstream
                 spatialOffsets = _spatialOffsetsBuffer
             });
 
@@ -471,6 +527,47 @@ public struct CPUCellDensityExecuteManager : IJob
         }
         densityCalcs = null;
         jobHandles = null;
+=======
+                spatialOffsets = _spatialOffsetsBuffer,
+                result = particleSlices[currentParticle]
+            });
+
+            pressureCalcs.Add(new CPUPressureCalc{
+                index = particleIndices[currentParticle],
+                kernelVariables = _variablesBuffer,
+                particles = _particleBuffer, //add result buffer
+                spatialIndices = _spatialIndicesBuffer,
+                spatialOffsets = _spatialOffsetsBuffer,
+                result = particleSlices[currentParticle]
+            });
+
+            viscosityCalcs.Add(new CPUViscosityCalc{
+                index = particleIndices[currentParticle],
+                kernelVariables = _variablesBuffer,
+                particles = _particleBuffer, //add result buffer
+                spatialIndices = _spatialIndicesBuffer,
+                spatialOffsets = _spatialOffsetsBuffer,
+                result = particleSlices[currentParticle]
+            });
+            currentParticle++;
+        }
+
+        for(int j=0; j<3; j++){
+            for(int i=0; i<currentParticle; i++){
+                if(j == 0) {jobHandles.Add(densityCalcs[i].Schedule());}
+                else if(j == 1) {jobHandles.Add(pressureCalcs[i].Schedule());}
+                else if(i == 2) {jobHandles.Add(viscosityCalcs[i].Schedule());}
+            }
+            JobHandle.CompleteAll(jobHandles);
+            resultBuffer.CopyTo(_particleBuffer);
+            jobHandles.Clear();
+        }
+        
+        
+
+        densityCalcs = null;
+        jobHandles.Dispose();
+>>>>>>> Stashed changes
         for(int i=0; i<particleIndices.ToArray().Length; i++){
             particleIndices[i].Dispose();
         }
@@ -595,6 +692,10 @@ public struct CPUCellViscosityExecuteManager : IJob
         jobHandles = null;
         for(int i=0; i<particleIndices.ToArray().Length; i++){
             particleIndices[i].Dispose();
+<<<<<<< Updated upstream
+=======
+            particleSl
+>>>>>>> Stashed changes
         }
     }
 }
