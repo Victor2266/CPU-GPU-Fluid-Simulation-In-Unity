@@ -54,6 +54,7 @@ Shader "Instanced/Particle2D AoS"
 
                 // Check if particle should be rendered
                 o.valid = particle.type != 0;
+                //o.valid = 1; //This can be used to debug where the disabled particles are going
 
                 // If type is 0, move vertex far off screen
                 float3 worldVertPos;

@@ -48,9 +48,11 @@ struct Circle //12 bytes total
 
 struct SourceObj //16 bytes total
 {
-    float2 pos; //8 bytes
-    float radius; //4 bytes
-	int fluidType; // fluid type enum
+	float2 pos; 		//8 bytes
+    float radius; 		//4 bytes
+    float2 velo; 		//8 bytes
+    float spawnRate; 	//4 bytes
+	int fluidType; 		//4 bytes, fluid type enum
 };
 
 struct OrientedBox //24 bytes total
@@ -79,7 +81,7 @@ RWStructuredBuffer<uint> SpatialOffsets; // used for spatial hashing
 RWStructuredBuffer<uint> SortedIndices;  // Post-sort indices
 RWStructuredBuffer<OrientedBox> BoxColliders;
 RWStructuredBuffer<Circle> CircleColliders;
-RWStructuredBuffer<Circle> SourceObjs;
+RWStructuredBuffer<SourceObj> SourceObjs;
 RWStructuredBuffer<OrientedBox> DrainObjs;
 RWStructuredBuffer<uint> atomicCounter; // counterInt, tickCount
 
@@ -245,71 +247,19 @@ float2 ExternalForces(float2 pos, float2 velocity, float gravity)
 
 void HandleBoxCollision(inout float2 pos, inout float2 vel, OrientedBox box, float collisionDamping)
 {
+	// Create rotation matrix for local space transformation
+    float2 right = box.zLocal;
+    float2 up = float2(-box.zLocal.y, box.zLocal.x); // Precompute once
+    
     // Transform position to box's local space
     float2 localPos = pos - box.pos;
-
-    // Create rotation matrix for local space transformation
-    float2 right = box.zLocal;
-    float2 up = float2(-box.zLocal.y, box.zLocal.x);
-
-    // Transform to box's local space
+	// Transform to box's local space
     float2 rotatedPos = float2(
         dot(localPos, right),
         dot(localPos, up)
     );
 
     // Calculate distance to box edges in local space
-    float2 boxHalfSize = box.size * 0.5;
-    float2 distanceFromCenter = abs(rotatedPos);
-    float2 penetration = distanceFromCenter - boxHalfSize;
-
-    // Only process collision if we're actually inside the box
-    if (penetration.x < 0 && penetration.y < 0)
-    {
-        // Transform velocity to local space
-        float2 localVel = float2(
-            dot(vel, right),
-            dot(vel, up)
-        );
-
-        // Determine which axis has less penetration
-        if (penetration.x > penetration.y)
-        {
-            // X axis collision
-            float sign = rotatedPos.x > 0 ? 1 : -1;
-            rotatedPos.x = boxHalfSize.x * sign;
-            localVel.x *= -1 * collisionDamping;
-        }
-        else
-        {
-            // Y axis collision
-            float sign = rotatedPos.y > 0 ? 1 : -1;
-            rotatedPos.y = boxHalfSize.y * sign;
-            localVel.y *= -1 * collisionDamping;
-        }
-
-        // Transform position back to world space
-        pos = box.pos + right * rotatedPos.x + up * rotatedPos.y;
-
-        // Transform velocity back to world space
-        vel = right * localVel.x + up * localVel.y;
-    }
-}
-
-void HandleBoxCollision2(inout float2 pos, inout float2 vel, OrientedBox box, float collisionDamping)
-{
-    // Transform position to box's local space (combined operations)
-    float2 right = box.zLocal;
-    float2 up = float2(-box.zLocal.y, box.zLocal.x); // Precompute once
-    
-    // Combined transformation to local space (reduced operations)
-    float2 localPos = pos - box.pos;
-    float2 rotatedPos = float2(
-        dot(localPos, right),
-        dot(localPos, up)
-    );
-
-    // Early exit optimization
     float2 boxHalfSize = box.size * 0.5;
     float2 distanceFromCenter = abs(rotatedPos);
     float2 penetration = distanceFromCenter - boxHalfSize;
@@ -324,7 +274,7 @@ void HandleBoxCollision2(inout float2 pos, inout float2 vel, OrientedBox box, fl
         dot(vel, up)
     );
 
-    // Branchless version of axis selection
+    // Determine which axis has less penetration (Branchless version)
     bool useXAxis = penetration.x > penetration.y;
     float penetrationAmount = useXAxis ? penetration.x : penetration.y;
     float sign = useXAxis ? (rotatedPos.x > 0 ? 1 : -1) : (rotatedPos.y > 0 ? 1 : -1);
@@ -341,6 +291,20 @@ void HandleBoxCollision2(inout float2 pos, inout float2 vel, OrientedBox box, fl
     // Transform back to world space (single operation)
     pos = box.pos + right * rotatedPos.x + up * rotatedPos.y;
     vel = right * localVel.x + up * localVel.y;
+}
+
+void DisableParticle(inout Particle particle){
+	// Create a random seed based on particle position and current tick
+	uint randomState = (uint)(particle.position.x * 1000) + (uint)(particle.position.y * 1000) + atomicCounter[1] * 982451653;
+
+	// Randomize position within bounds before disabling
+	float2 halfSize = boundsSize * 0.5;
+	particle.position.x = (RandomValue(randomState) * 2 - 1) * halfSize.x;
+	particle.position.y = (RandomValue(randomState) * 2 - 1) * halfSize.y;
+	particle.predictedPosition = particle.position;
+	particle.velocity = float2(0, 0);
+
+	particle.type = 0; // Remove the particle by setting to 0 which is disabled.
 }
 
 void HandleDrainCollision(inout Particle particle, OrientedBox drain)
@@ -363,19 +327,7 @@ void HandleDrainCollision(inout Particle particle, OrientedBox drain)
 	// If particle is inside drain, randomize position before disabling
 	if (penetration.x < 0 && penetration.y < 0)
 	{
-		// Create a random seed based on particle position and current tick
-		uint randomState = (uint)(particle.position.x * 1000) + 
-						(uint)(particle.position.y * 1000) + 
-						atomicCounter[1] * 982451653;
-		
-		// Randomize position within bounds before disabling
-		float2 halfSize = boundsSize * 0.5;
-		particle.position.x = (RandomValue(randomState) * 2 - 1) * halfSize.x;
-		particle.position.y = (RandomValue(randomState) * 2 - 1) * halfSize.y;
-		particle.predictedPosition = particle.position;
-		particle.velocity = float2(0, 0);
-		
-		particle.type = 0; // Disable particle
+		DisableParticle(particle);
 	}
 }
 
@@ -411,9 +363,7 @@ void HandleCollisions(inout Particle particle)
 		if (any(edgeDst <= 0))
 		{
 			// Create random seed based on position and current tick
-			uint randomState = (uint)(pos.x * 1000) + 
-							(uint)(pos.y * 1000) + 
-							atomicCounter[1] * 982451653;
+			uint randomState = (uint)(pos.x * 1000) + (uint)(pos.y * 1000) + atomicCounter[1] * 982451653;
 			
 			// Randomize position within bounds before disabling
 			pos.x = (RandomValue(randomState) * 2 - 1) * halfSize.x;
@@ -451,11 +401,13 @@ void HandleCollisions(inout Particle particle)
 
 		//TODO Handle Circle Collisions
 
-		// Update position and velocity in the particle struct only if particle is still active
-		particle.position = pos;
-		particle.velocity = vel;
 	}
+
+	// Update position and velocity in the particle struct
+	particle.position = pos;
+	particle.velocity = vel;
 }
+
 void HandleLeftMouseInput(inout Particle particle){ //This is called up to spawnRate number of times per frame, once atomicCounter[0] reaches spawnRate it needs to get set back to 0 by the c# script
 
 	atomicIncrementCounter();
@@ -493,7 +445,13 @@ void HandleSourceObject(inout Particle particle){
     
 	// Select a random source object
 	uint sourceIndex = NextRandom(randomState) % numSourceObjs;
-	Circle source = SourceObjs[sourceIndex];
+	SourceObj source = SourceObjs[sourceIndex];
+
+	if (source.fluidType == 0) // If the source is disabled
+		return;
+
+	if (RandomValue(randomState) > source.spawnRate) // Skips some particles when the spawn rate is below 1
+		return;
 	
 	float angle = RandomValue(randomState) * 2.0 * 3.14159; // Random angle [0, 2pi)
 	float radius = RandomValue(randomState) * source.radius; // Random distance from center
@@ -503,11 +461,11 @@ void HandleSourceObject(inout Particle particle){
 	float2 spawnPos = source.pos + offset;
 	
 	// Initialize the particle
-	particle.velocity = float2(0, 0);
+	particle.velocity = source.velo;
 	particle.predictedPosition = spawnPos;
 	particle.position = spawnPos;
-	particle.temperature = FluidDataSet[0].startTemperature; // TODO: replace this with the source object's type
-	particle.type = 1;
+	particle.temperature = FluidDataSet[source.fluidType - 1].startTemperature;
+	particle.type = source.fluidType;
     
 }
 
@@ -518,10 +476,11 @@ void HandleRightMouseInput(inout Particle particle){ // TODO: Make this more eff
 		float sqrDst = dot(inputPointOffset, inputPointOffset);
 		if (sqrDst < interactionInputRadius * interactionInputRadius)
 		{
-			particle.type = 0; // Remove the particle by setting to 0 which is disabled.
+			DisableParticle(particle);
 		}
 	}
 }
+
 
 [numthreads(NumThreads,1,1)]
 void SpawnParticles (uint3 id : SV_DispatchThreadID){

@@ -26,22 +26,25 @@ public struct Circle //12 bytes total
 }
 
 [System.Serializable]
-public struct SourceObjectInitializer //X bytes total
+public struct SourceObjectInitializer //40 bytes total: This is for setting up source objects in the inspector
 {
-    public Transform transform;
-
-    public Vector2 initVelo; //8 bytes
-    public int fluidType; //4 bytes
+    public Transform transform; //24 bytes
+    public Vector2 velo; //8 bytes
+    [Range(0, 1)]
+    // Each particle will pick a random source object to spawn from and then it will generate a number between 0 and 1 to compare to this spawnRate to see if it should spawn
+    public float spawnRate; //4 bytes: This is the percent chance that the particle spawns, 1 means 100% given that the particle has picked this source
+    public int fluidType; //4 bytes: Setting this to 0 will disable this source
 }
 
 [System.Serializable]
-[StructLayout(LayoutKind.Sequential, Size = 24)]
-public struct SourceObject //24 bytes total
+[StructLayout(LayoutKind.Sequential, Size = 28)]
+public struct SourceObject //28 bytes total: This is for sending source object info to the GPU
 {
     public Vector2 pos; //8 bytes
     public float radius; //4 bytes
 
-    public Vector2 initVelo; //8 bytes
+    public Vector2 velo; //8 bytes
+    public float spawnRate; //4 bytes
     public int fluidType; //4 bytes
 }
 

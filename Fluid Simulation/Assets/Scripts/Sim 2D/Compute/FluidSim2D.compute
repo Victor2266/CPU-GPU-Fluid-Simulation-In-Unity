@@ -154,7 +154,7 @@ float2 ExternalForces(float2 pos, float2 velocity)
 	return gravityAccel;
 }
 
-void HandleBoxCollision(inout float2 pos, inout float2 vel, OrientedBox box)
+void HandleBoxCollision1(inout float2 pos, inout float2 vel, OrientedBox box)
 {
     // Transform position to box's local space
     float2 localPos = pos - box.pos;
@@ -207,7 +207,7 @@ void HandleBoxCollision(inout float2 pos, inout float2 vel, OrientedBox box)
     }
 }
 
-void HandleBoxCollision2(inout float2 pos, inout float2 vel, OrientedBox box)
+void HandleBoxCollision(inout float2 pos, inout float2 vel, OrientedBox box)
 {
     // Transform position to box's local space (combined operations)
     float2 right = box.zLocal;

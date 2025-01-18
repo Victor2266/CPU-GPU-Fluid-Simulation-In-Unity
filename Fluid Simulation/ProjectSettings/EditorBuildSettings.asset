@@ -29,6 +29,9 @@ EditorBuildSettings:
   - enabled: 0
     path: Assets/Scenes/2D CPU_GPU 3.unity
     guid: 5217a73f243e84c46b9010a0709e1a9f
+  - enabled: 0
+    path: Assets/Scenes/AOS_TESTING.unity
+    guid: 757880a32dd453646a4e890d32ac9da9
   m_configObjects:
     com.unity.adaptiveperformance.loader_settings: {fileID: 11400000, guid: 829ae07d8ffff7b429f19f2f698c1b92, type: 2}
     com.unity.adaptiveperformance.samsung.android.provider_settings: {fileID: 11400000, guid: 524aea0a76496cf43aca317b3a9bcbd3, type: 2}

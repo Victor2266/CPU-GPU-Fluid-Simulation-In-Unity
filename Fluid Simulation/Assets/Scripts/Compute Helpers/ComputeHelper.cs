@@ -52,6 +52,13 @@ public static class ComputeHelper
         Dispatch(cs, texture.width, texture.height, 1, kernelIndex);
     }
 
+    public static int CalculateThreadGroupCount1D(ComputeShader cs, int numIterationsX, int kernelIndex = 0)
+    {
+        Vector3Int threadGroupSizes = GetThreadGroupSizes(cs, kernelIndex);
+        int numGroupsX = Mathf.CeilToInt(numIterationsX / (float)threadGroupSizes.x);
+        return numGroupsX;
+    }
+
     public static int GetStride<T>()
     {
         return System.Runtime.InteropServices.Marshal.SizeOf(typeof(T));
