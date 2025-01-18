@@ -6,6 +6,7 @@
 #pragma kernel CalculateViscosity
 #pragma kernel UpdatePositions
 #pragma kernel mergeCPUParticles
+
 // Includes
 #include "./FluidMaths2DAoS.hlsl"
 #include "./SpatialHash.hlsl"

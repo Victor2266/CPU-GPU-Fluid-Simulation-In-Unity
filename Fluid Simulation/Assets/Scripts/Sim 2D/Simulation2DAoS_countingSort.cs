@@ -4,6 +4,8 @@ using System.Runtime.InteropServices;
 using System;
 using UnityEngine.UIElements;
 using System.Linq;
+using Unity.Collections;
+using Unity.Jobs;
 
 
 public class Simulation2DAoSCounting : MonoBehaviour, IFluidSimulation
@@ -111,6 +113,7 @@ public class Simulation2DAoSCounting : MonoBehaviour, IFluidSimulation
     const int pressureKernel = 6;
     const int viscosityKernel = 7;
     const int updatePositionKernel = 8;
+    const int mergeCPUParticlesKernel = 9; // For CPU-GPU
 
     // State
     bool isPaused;
@@ -123,11 +126,24 @@ public class Simulation2DAoSCounting : MonoBehaviour, IFluidSimulation
     private const float MAX_DELTA_TIME = 1f / 30f; // Maximum allowed delta time
     private const float FIXED_TIME_STEP = 1f / 120f; // Your desired fixed time step
 
+    [Header("CPU Computing")]
+    //CPU Compute
+
+    public bool isCPUComputingEnabled = false;
+
+    public bool toggleCPUComputing = false;
+
+    CPUParticleKernelAoS CPUKernelAOS;
+
+    ComputeBuffer cpuparticlebuffer;
+    ComputeBuffer keyarrbuffer;
+    public uint ThreadBatchSize = 50;
+    public uint numCPUKeys = 10;
     void Start()
     {
         // Debug.Log(System.Runtime.InteropServices.Marshal.SizeOf(typeof(SourceObjectInitializer))); //This prints the size of the typeof(struct)
         Debug.Log("Controls: Space = Play/Pause, R = Reset, LMB = Attract, RMB = Repel");
-
+        CPUKernelAOS = new CPUParticleKernelAoS();
         spawnData = spawner.GetSpawnData();
         numParticles = spawnData.positions.Length;
 
@@ -206,6 +222,10 @@ public class Simulation2DAoSCounting : MonoBehaviour, IFluidSimulation
         spatialOffsets = ComputeHelper.CreateStructuredBuffer<uint>(numParticles);
         sortedIndices = ComputeHelper.CreateStructuredBuffer<uint>(numParticles);
 
+        // CPU Particle Buffer
+        cpuparticlebuffer = ComputeHelper.CreateStructuredBuffer<Particle>(numParticles);
+        keyarrbuffer = ComputeHelper.CreateStructuredBuffer<uint>(numParticles);
+
         // Set buffer data
         fluidDataBuffer.SetData(fluidParamArr);
         ScalingFactorsBuffer.SetData(scalingFactorsArr);
@@ -213,11 +233,10 @@ public class Simulation2DAoSCounting : MonoBehaviour, IFluidSimulation
         uint[] atomicCounter = { 0, uintCounter++ };
         atomicCounterBuffer.SetData(atomicCounter);
 
-
         // Init compute
         ComputeHelper.SetBuffer(compute, fluidDataBuffer, "FluidDataSet", SpawnParticlesKernel, externalForcesKernel, densityKernel, pressureKernel, viscosityKernel, updatePositionKernel);
         ComputeHelper.SetBuffer(compute, ScalingFactorsBuffer, "ScalingFactorsBuffer", densityKernel, pressureKernel, viscosityKernel);
-        ComputeHelper.SetBuffer(compute, particleBuffer, "Particles", SpawnParticlesKernel, externalForcesKernel, reorderKernel, reorderCopybackKernel, spatialHashKernel, densityKernel, pressureKernel, viscosityKernel, updatePositionKernel);
+        ComputeHelper.SetBuffer(compute, particleBuffer, "Particles", SpawnParticlesKernel, externalForcesKernel, reorderKernel, reorderCopybackKernel, spatialHashKernel, densityKernel, pressureKernel, viscosityKernel, updatePositionKernel, mergeCPUParticlesKernel);
         ComputeHelper.SetBuffer(compute, spatialIndices, "SpatialIndices", spatialHashKernel, densityKernel, pressureKernel, viscosityKernel);
         ComputeHelper.SetBuffer(compute, spatialOffsets, "SpatialOffsets", spatialHashKernel, densityKernel, pressureKernel, viscosityKernel);
         ComputeHelper.SetBuffer(compute, sortedIndices, "SortedIndices", spatialHashKernel, reorderKernel, reorderCopybackKernel);
@@ -227,18 +246,19 @@ public class Simulation2DAoSCounting : MonoBehaviour, IFluidSimulation
         ComputeHelper.SetBuffer(compute, sourceObjectBuffer, "SourceObjs", SpawnParticlesKernel);
         ComputeHelper.SetBuffer(compute, drainObjectBuffer, "DrainObjs", updatePositionKernel);
         ComputeHelper.SetBuffer(compute, atomicCounterBuffer, "atomicCounter", SpawnParticlesKernel, updatePositionKernel);
+        ComputeHelper.SetBuffer(compute, cpuparticlebuffer, "CPUParticles", mergeCPUParticlesKernel);
+        ComputeHelper.SetBuffer(compute, keyarrbuffer, "keyarr", densityKernel, pressureKernel, viscosityKernel, mergeCPUParticlesKernel);
 
         compute.SetInt("numBoxColliders", boxColliders.Length);
         compute.SetInt("numCircleColliders", circleColliders.Length);
         compute.SetInt("numParticles", numParticles);
         compute.SetFloat("maxSmoothingRadius", maxSmoothingRadius);
         compute.SetInt("spawnRate", (int) spawnRate);
+        compute.SetInt("numCPUKeys", (int)numCPUKeys);
 
-        // Old
-        //gpuSort = new();
-        //gpuSort.SetBuffers(spatialIndices, spatialOffsets);
-        gpuSort = new GPUCountSort(spatialIndices, sortedIndices, (uint) (spatialIndices.count - 1) );
-        spatialOffsetsCalc = new SpatialOffsetCalculator(spatialIndices, spatialOffsets);
+        // GPU Sort Init
+        gpuSort = new GPUCountSort(spatialIndices, sortedIndices, (uint) (spatialIndices.count - 1), keyarrbuffer );
+        spatialOffsetsCalc = new SpatialOffsetCalculator(spatialIndices, spatialOffsets );
 
         // Init display
         display.InitAoS(this);  
@@ -306,18 +326,38 @@ public class Simulation2DAoSCounting : MonoBehaviour, IFluidSimulation
 
     void RunSimulationStep()
     {
+        // Init + ext forces
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: SpawnParticlesKernel);
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: externalForcesKernel);
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: spatialHashKernel);
+
+        // Sort & offsets; copyback for memory coherency
         gpuSort.Run();
         spatialOffsetsCalc.Run(false);
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: reorderKernel);
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: reorderCopybackKernel);
-        //gpuSort.SortAndCalculateOffsets(); // Old
-        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: densityKernel);
-        //compute the pressure and viscosity on CPU
-        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: pressureKernel);
-        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: viscosityKernel);
+
+        // CPU-GPU flag
+        if (isCPUComputingEnabled)
+        {
+            if (toggleCPUComputing)
+            {
+                runCPUComputeTest();
+            }
+            else
+            {
+                ComputeHelper.Dispatch(compute, numParticles, kernelIndex: densityKernel);
+                ComputeHelper.Dispatch(compute, numParticles, kernelIndex: pressureKernel);
+                ComputeHelper.Dispatch(compute, numParticles, kernelIndex: viscosityKernel);
+            }
+        }
+        else
+        {
+            ComputeHelper.Dispatch(compute, numParticles, kernelIndex: densityKernel);
+            ComputeHelper.Dispatch(compute, numParticles, kernelIndex: pressureKernel);
+            ComputeHelper.Dispatch(compute, numParticles, kernelIndex: viscosityKernel);
+        }
+
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: updatePositionKernel);
     }
 
@@ -411,6 +451,16 @@ public class Simulation2DAoSCounting : MonoBehaviour, IFluidSimulation
         // Mouse interaction settings:
         HandleMouseInput();
 
+        // CPU compute keys
+        if (isCPUComputingEnabled)
+        {
+            CPUKernelAOS.deltaTime = deltaTime;
+            compute.SetInt("numCPUKeys", (int)numCPUKeys);
+        }
+        else
+        {
+            compute.SetInt("numCPUKeys", 0);
+        }
     }
 
     void HandleMouseInput()
@@ -513,7 +563,9 @@ public class Simulation2DAoSCounting : MonoBehaviour, IFluidSimulation
             circleCollidersBuffer,
             sourceObjectBuffer,
             drainObjectBuffer,
-            atomicCounterBuffer
+            atomicCounterBuffer,
+            cpuparticlebuffer,
+            keyarrbuffer
         );
 
         gpuSort.Release();
@@ -622,5 +674,160 @@ public class Simulation2DAoSCounting : MonoBehaviour, IFluidSimulation
     public int GetParticleCount()
     {
         return numParticles;
+    }
+
+    void initializeCPUKernelSettingsAoS()
+    {
+        CPUKernelAOS.numParticles = numParticles;
+        CPUKernelAOS.offsets = new int2[9];
+
+        CPUKernelAOS.offsets[0] = new int2(-1, 1);
+        CPUKernelAOS.offsets[1] = new int2(0, 1);
+        CPUKernelAOS.offsets[2] = new int2(1, 1);
+        CPUKernelAOS.offsets[3] = new int2(-1, 0);
+        CPUKernelAOS.offsets[4] = new int2(0, 0);
+        CPUKernelAOS.offsets[5] = new int2(1, 0);
+        CPUKernelAOS.offsets[6] = new int2(-1, -1);
+        CPUKernelAOS.offsets[7] = new int2(0, -1);
+        CPUKernelAOS.offsets[8] = new int2(1, -1);
+
+        CPUKernelAOS.fluidParams = new FluidParam[Enum.GetValues(typeof(FluidType)).Length - 1];
+        CPUKernelAOS.scalingFactors = new ScalingFactors[Enum.GetValues(typeof(FluidType)).Length - 1];
+        CPUKernelAOS.maxSmoothingRadius = maxSmoothingRadius;
+        CPUKernelAOS.boxCollidersData = new OrientedBox[boxColliders.Length];
+        CPUKernelAOS.circleCollidersData = new Circle[circleColliders.Length];
+        CPUKernelAOS.drainData = new OrientedBox[drainObjects.Length];
+        CPUKernelAOS.sourceData = new Circle[sourceObjects.Length];
+        CPUKernelAOS.spatialIndices = new uint3[numParticles];
+        CPUKernelAOS.spatialOffsets = new uint[numParticles];
+        CPUKernelAOS.particles = new Particle[numParticles];
+        fluidParamArr.CopyTo(CPUKernelAOS.fluidParams, 0);
+        scalingFactorsArr.CopyTo(CPUKernelAOS.scalingFactors, 0);
+        CPUKernelAOS.keyarr = new uint[numParticles];
+    }
+
+    public void runCPUComputeTest()
+    {
+        //initialize local arrays
+        initializeCPUKernelSettingsAoS();
+
+        //Initialize all CPU buffers
+        CPUKernelAOS.fluidParamBuffer = new NativeArray<FluidParam>(CPUKernelAOS.fluidParams.Length, Allocator.TempJob);
+        CPUKernelAOS.scalingFactorsBuffer = new NativeArray<ScalingFactors>(CPUKernelAOS.scalingFactors.Length, Allocator.TempJob);
+        CPUKernelAOS.spatialIndicesBuffer = new NativeArray<uint3>(numParticles, Allocator.TempJob);
+        CPUKernelAOS.spatialOffsetsBuffer = new NativeArray<uint>(numParticles, Allocator.TempJob);
+        CPUKernelAOS.particleBuffer = new NativeArray<Particle>(numParticles, Allocator.TempJob);
+        CPUKernelAOS.offsets2DBuffer = new NativeArray<int2>(CPUKernelAOS.offsets.Length, Allocator.TempJob);
+        CPUKernelAOS.particleResultBuffer = new NativeArray<Particle>(numParticles, Allocator.TempJob);
+        CPUKernelAOS.keyarrbuffer = new NativeArray<uint>(numParticles, Allocator.TempJob);
+        //copy data to CPU Buffers (need to figure out how to copy direct from compute buffer to nativearray)
+        keyarrbuffer.GetData(CPUKernelAOS.keyarr);
+        CPUKernelAOS.keyarrbuffer.CopyFrom(CPUKernelAOS.keyarr);
+        CPUKernelAOS.offsets2DBuffer.CopyFrom(CPUKernelAOS.offsets);
+        CPUKernelAOS.fluidParamBuffer.CopyFrom(fluidParamArr);
+        CPUKernelAOS.scalingFactorsBuffer.CopyFrom(scalingFactorsArr);
+        spatialIndices.GetData(CPUKernelAOS.spatialIndices);
+        CPUKernelAOS.spatialIndicesBuffer.CopyFrom(CPUKernelAOS.spatialIndices);
+        spatialOffsets.GetData(CPUKernelAOS.spatialOffsets);
+        CPUKernelAOS.spatialOffsetsBuffer.CopyFrom(CPUKernelAOS.spatialOffsets);
+        particleBuffer.GetData(CPUKernelAOS.particles);
+        CPUKernelAOS.particleBuffer.CopyFrom(CPUKernelAOS.particles);
+        CPUKernelAOS.particleResultBuffer.CopyFrom(CPUKernelAOS.particles);
+
+        //create each job type and assign the buffers to the jobs
+        CPUDensityCalcAoS densitycalc = new CPUDensityCalcAoS
+        {
+            numParticles = (uint)numParticles,
+            maxSmoothingRadius = maxSmoothingRadius,
+            densityOut = CPUKernelAOS.particleResultBuffer,
+            particles = CPUKernelAOS.particleBuffer,
+            spatialIndices = CPUKernelAOS.spatialIndicesBuffer,
+            spatialOffsets = CPUKernelAOS.spatialOffsetsBuffer,
+            fluidPs = CPUKernelAOS.fluidParamBuffer,
+            scalingFacts = CPUKernelAOS.scalingFactorsBuffer,
+            offsets2D = CPUKernelAOS.offsets2DBuffer,
+            numCPUKeys = numCPUKeys,
+            keyarr = CPUKernelAOS.keyarrbuffer,
+        };
+
+        CPUPressureCalcAoS pressureCalc = new CPUPressureCalcAoS
+        {
+            numParticles = (uint)numParticles,
+            maxSmoothingRadius = maxSmoothingRadius,
+            pressureOut = CPUKernelAOS.particleBuffer,
+            particles = CPUKernelAOS.particleResultBuffer,
+            spatialIndices = CPUKernelAOS.spatialIndicesBuffer,
+            spatialOffsets = CPUKernelAOS.spatialOffsetsBuffer,
+            fluidPs = CPUKernelAOS.fluidParamBuffer,
+            scalingFacts = CPUKernelAOS.scalingFactorsBuffer,
+            offsets2D = CPUKernelAOS.offsets2DBuffer,
+            deltaTime = CPUKernelAOS.deltaTime,
+            numCPUKeys = numCPUKeys,
+            keyarr = CPUKernelAOS.keyarrbuffer,
+        };
+
+        CPUViscosityCalcAoS viscosityCalc = new CPUViscosityCalcAoS
+        {
+            numParticles = (uint)numParticles,
+            maxSmoothingRadius = maxSmoothingRadius,
+            viscosityOut = CPUKernelAOS.particleResultBuffer,
+            particles = CPUKernelAOS.particleBuffer,
+            spatialIndices = CPUKernelAOS.spatialIndicesBuffer,
+            spatialOffsets = CPUKernelAOS.spatialOffsetsBuffer,
+            fluidPs = CPUKernelAOS.fluidParamBuffer,
+            scalingFacts = CPUKernelAOS.scalingFactorsBuffer,
+            offsets2D = CPUKernelAOS.offsets2DBuffer,
+            deltaTime = CPUKernelAOS.deltaTime,
+            numCPUKeys = numCPUKeys,
+            keyarr = CPUKernelAOS.keyarrbuffer,
+        };
+
+        //Create the threads to calculate either density, pressure, or velocity
+
+        JobHandle density = densitycalc.Schedule(numParticles, (int)ThreadBatchSize);
+        density.Complete();
+        ComputeHelper.Dispatch(compute, numParticles + 1, kernelIndex: densityKernel);
+
+        //data transfers required to merge CPU and GPU data
+        CPUKernelAOS.particleResultBuffer.CopyTo(CPUKernelAOS.particles);
+        cpuparticlebuffer.SetData(CPUKernelAOS.particles);
+        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: mergeCPUParticlesKernel);
+        particleBuffer.GetData(CPUKernelAOS.particles);
+        CPUKernelAOS.particleResultBuffer.CopyFrom(CPUKernelAOS.particles);
+        CPUKernelAOS.particleBuffer.CopyFrom(CPUKernelAOS.particles);
+
+        JobHandle pressure = pressureCalc.Schedule(numParticles, (int)ThreadBatchSize);
+        pressure.Complete();
+        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: pressureKernel);
+        CPUKernelAOS.particleResultBuffer.CopyTo(CPUKernelAOS.particles);
+        cpuparticlebuffer.SetData(CPUKernelAOS.particles);
+        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: mergeCPUParticlesKernel);
+        particleBuffer.GetData(CPUKernelAOS.particles);
+        CPUKernelAOS.particleResultBuffer.CopyFrom(CPUKernelAOS.particles);
+        CPUKernelAOS.particleBuffer.CopyFrom(CPUKernelAOS.particles);
+
+        JobHandle viscosity = viscosityCalc.Schedule(numParticles, (int)ThreadBatchSize);
+        viscosity.Complete();
+        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: viscosityKernel);
+
+        CPUKernelAOS.particleResultBuffer.CopyTo(CPUKernelAOS.particles);
+        cpuparticlebuffer.SetData(CPUKernelAOS.particles);
+        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: mergeCPUParticlesKernel);
+        particleBuffer.GetData(CPUKernelAOS.particles);
+        CPUKernelAOS.particleResultBuffer.CopyFrom(CPUKernelAOS.particles);
+        CPUKernelAOS.particleBuffer.CopyFrom(CPUKernelAOS.particles);
+
+        //Debug.Log("CPUComputeCompleted");
+        CPUKernelAOS.particleResultBuffer.CopyTo(CPUKernelAOS.particles);
+        particleBuffer.SetData(CPUKernelAOS.particles);
+
+        CPUKernelAOS.fluidParamBuffer.Dispose();
+        CPUKernelAOS.scalingFactorsBuffer.Dispose();
+        CPUKernelAOS.spatialIndicesBuffer.Dispose();
+        CPUKernelAOS.spatialOffsetsBuffer.Dispose();
+        CPUKernelAOS.particleBuffer.Dispose();
+        CPUKernelAOS.offsets2DBuffer.Dispose();
+        CPUKernelAOS.particleResultBuffer.Dispose();
+        CPUKernelAOS.keyarrbuffer.Dispose();
     }
 }

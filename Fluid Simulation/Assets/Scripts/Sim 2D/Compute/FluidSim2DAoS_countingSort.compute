@@ -7,6 +7,7 @@
 #pragma kernel CalculatePressureForce
 #pragma kernel CalculateViscosity
 #pragma kernel UpdatePositions
+#pragma kernel mergeCPUParticles
 
 // Includes
 #include "./FluidMaths2DAoS.hlsl"
@@ -84,6 +85,8 @@ RWStructuredBuffer<Circle> CircleColliders;
 RWStructuredBuffer<SourceObj> SourceObjs;
 RWStructuredBuffer<OrientedBox> DrainObjs;
 RWStructuredBuffer<uint> atomicCounter; // counterInt, tickCount
+RWStructuredBuffer<uint> keyarr;
+RWStructuredBuffer<Particle> CPUParticles;
 
 // Settings
 const uint numParticles;
@@ -93,6 +96,7 @@ const float2 interactionInputPoint;
 const float interactionInputStrength;
 const float interactionInputRadius;
 const float maxSmoothingRadius;
+const uint numCPUKeys;
 
 int numBoxColliders;
 int numCircleColliders;
@@ -573,6 +577,16 @@ void CalculateDensities(uint3 id : SV_DispatchThreadID)
 		return;
 	}
 
+	// CPU key check
+	int2 cell = GetCell2D(particle.predictedPosition, maxSmoothingRadius);
+	uint hash = HashCell2D(cell);
+	uint key = KeyFromHash(hash, numParticles);
+	for (uint j = 0; j < numCPUKeys; j++) {
+		if (key == keyarr[j]) {
+			return;
+		}
+	}
+
 	FluidData fluidData = FluidDataSet[particle.type - 1];
     particle.density = CalculateDensity(particle.predictedPosition, fluidData.smoothingRadius, particle.type); // This needs the fluidData
 	
@@ -587,6 +601,16 @@ void CalculatePressureForce (uint3 id : SV_DispatchThreadID)
 	if (id.x >= numParticles) return;
 	Particle particle = Particles[id.x];
 	if (particle.type == 0) return; // Skip disabled
+
+	// CPU key check
+	int2 cell2 = GetCell2D(particle.predictedPosition, maxSmoothingRadius);
+	uint hash2 = HashCell2D(cell2);
+	uint key2 = KeyFromHash(hash2, numParticles);
+	for (uint j = 0; j < numCPUKeys; j++) {
+		if (key2 == keyarr[j]) {
+			return;
+		}
+	}
 
 	FluidData fluidData = FluidDataSet[particle.type - 1];
 
@@ -664,6 +688,16 @@ void CalculateViscosity (uint3 id : SV_DispatchThreadID)
 	Particle particle = Particles[id.x];
 	if (particle.type == 0) return; // Skip disabled
 
+	// CPU key check
+	int2 cell2 = GetCell2D(particle.predictedPosition, maxSmoothingRadius);
+	uint hash2 = HashCell2D(cell2);
+	uint key2 = KeyFromHash(hash2, numParticles);
+	for (uint j = 0; j < numCPUKeys; j++) {
+		if (key2 == keyarr[j]) {
+			return;
+		}
+	}
+
 	FluidData fluidData = FluidDataSet[particle.type - 1];
 		
 	float2 pos = Particles[id.x].predictedPosition;
@@ -721,4 +755,20 @@ void UpdatePositions(uint3 id : SV_DispatchThreadID)
     particle.position += particle.velocity * deltaTime;
     HandleCollisions(particle); // This needs the FluidDataSet
     Particles[id.x] = particle;
+}
+
+[numthreads(NumThreads, 1, 1)]
+void mergeCPUParticles(uint3 id : SV_DispatchThreadID)
+{
+	if (id.x >= numParticles) return;
+	Particle particle = Particles[id.x];
+	if (particle.type == 0) return; // Skip disabled
+	int2 cell2 = GetCell2D(particle.predictedPosition, maxSmoothingRadius);
+	uint hash2 = HashCell2D(cell2);
+	uint key2 = KeyFromHash(hash2, numParticles);
+	for (uint j = 0; j < numCPUKeys; j++) {
+		if (key2 == keyarr[j]) {
+			Particles[id.x] = CPUParticles[id.x];
+		}
+	}
 }

@@ -76,7 +76,6 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
     private ComputeBuffer circleCollidersBuffer;
 
     [Header("Source and Drain Objects")]
-
     public Transform[] sourceObjects;
     public SourceObjectInitializer[] sourceObjectsWIP;
     public Transform[] drainObjects;
@@ -110,8 +109,7 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
     const int pressureKernel = 4;
     const int viscosityKernel = 5;
     const int updatePositionKernel = 6;
-
-    const int mergeCPUParticlesKernel = 7;
+    const int mergeCPUParticlesKernel = 7; // For CPU-GPU
 
     // State
     bool isPaused;

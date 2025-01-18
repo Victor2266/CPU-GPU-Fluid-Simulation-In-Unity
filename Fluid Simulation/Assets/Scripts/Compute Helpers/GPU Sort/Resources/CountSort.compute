@@ -19,6 +19,8 @@ RWStructuredBuffer<uint> SortedValues;
 RWStructuredBuffer<uint> Counts;
 uint numInputs;
 
+RWStructuredBuffer<uint> KeyArr; // For CPU-GPU split
+
 static const int GroupSize = 128;
 
 [numthreads(GroupSize, 1, 1)]
@@ -53,6 +55,7 @@ void ScatterOutput(uint3 id : SV_DispatchThreadID)
 
 	SortedKeys[sortedIndex] = e;
 	SortedValues[sortedIndex] = value;
+	KeyArr[sortedIndex] = key;
 }
 
 [numthreads(GroupSize, 1, 1)]

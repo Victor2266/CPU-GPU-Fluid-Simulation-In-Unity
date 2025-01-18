@@ -2734,7 +2734,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   timeScale: 1
-  fixedTimeStep: 0
+  fixedTimeStep: 1
   enableHotkeys: 1
   iterationsPerFrame: 3
   boundsSize: {x: 34.2, y: 18.6}
@@ -2755,6 +2755,10 @@ MonoBehaviour:
   circleColliders: []
   sourceObjects: []
   drainObjects: []
+  isCPUComputingEnabled: 0
+  toggleCPUComputing: 0
+  ThreadBatchSize: 50
+  numCPUKeys: 10
 --- !u!114 &380785143
 MonoBehaviour:
   m_ObjectHideFlags: 0
