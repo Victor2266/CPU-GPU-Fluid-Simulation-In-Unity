@@ -135,10 +135,13 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
 
     ComputeBuffer cpuparticlebuffer;
     ComputeBuffer keyarrbuffer;
+    ComputeBuffer keypopsbuffer;
+    public uint[] keypops;
     public uint ThreadBatchSize = 50;
     public uint numCPUKeys = 10;
     void Start()
     { 
+        
         Debug.Log("Controls: Space = Play/Pause, R = Reset, LMB = Attract, RMB = Repel");
         CPUKernelAOS = new CPUParticleKernelAoS();
         spawnData = spawner.GetSpawnData();
@@ -245,8 +248,11 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
         compute.SetFloat("maxSmoothingRadius", maxSmoothingRadius);
         compute.SetInt("spawnRate", (int) spawnRate);
         compute.SetInt("numCPUKeys", (int) numCPUKeys);
+        keypopsbuffer = ComputeHelper.CreateStructuredBuffer<uint>(numParticles);
+        keypops = new uint[numParticles];
+
         gpuSort = new();
-        gpuSort.SetBuffers(spatialIndices, spatialOffsets, keyarrbuffer);
+        gpuSort.SetBuffers(spatialIndices, spatialOffsets, keyarrbuffer, keypopsbuffer);
 
 
         // Init display
@@ -282,7 +288,7 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
         {
             RunSimulationFrame(Time.deltaTime);
         }
-
+        
         if (pauseNextFrame)
         {
             isPaused = true;
@@ -661,8 +667,8 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
 	    CPUKernelAOS.offsets[7] = new int2(0, -1);
 	    CPUKernelAOS.offsets[8] = new int2(1, -1);
 
-        CPUKernelAOS.fluidParams = new FluidParam[Enum.GetValues(typeof(FluidType)).Length - 1];
-        CPUKernelAOS.scalingFactors = new ScalingFactors[Enum.GetValues(typeof(FluidType)).Length - 1];
+        CPUKernelAOS.fluidParams = new FluidParam[fluidParamArr.Length];
+        CPUKernelAOS.scalingFactors = new ScalingFactors[fluidParamArr.Length];
         CPUKernelAOS.maxSmoothingRadius = maxSmoothingRadius;
         CPUKernelAOS.boxCollidersData = new OrientedBox[boxColliders.Length];
         CPUKernelAOS.circleCollidersData = new Circle[circleColliders.Length];
@@ -786,6 +792,8 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
         //Debug.Log("CPUComputeCompleted");
         CPUKernelAOS.particleResultBuffer.CopyTo(CPUKernelAOS.particles);
         particleBuffer.SetData(CPUKernelAOS.particles);
+
+        //keypopsbuffer.GetData(keypops);
 
         CPUKernelAOS.fluidParamBuffer.Dispose();
         CPUKernelAOS.scalingFactorsBuffer.Dispose();

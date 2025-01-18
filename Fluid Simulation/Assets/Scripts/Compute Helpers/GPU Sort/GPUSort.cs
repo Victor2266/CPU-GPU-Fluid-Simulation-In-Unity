@@ -7,26 +7,27 @@ public class GPUSort
     const int sortKernel = 0;
     const int calculateOffsetsKernel = 1;
     const int sortPopsKernel = 2;
+    const int calcKeyPops = 3;
     readonly ComputeShader sortCompute;
     ComputeBuffer indexBuffer;
 
-    ComputeBuffer keyPop;
+    //ComputeBuffer keyPop;
     public GPUSort()
     {
         sortCompute = ComputeHelper.LoadComputeShader("BitonicMergeSort");
     }
  
-    public void SetBuffers(ComputeBuffer indexBuffer, ComputeBuffer offsetBuffer, ComputeBuffer keyArr)
+    public void SetBuffers(ComputeBuffer indexBuffer, ComputeBuffer offsetBuffer, ComputeBuffer keyArr, ComputeBuffer keyPop)
     {
         this.indexBuffer = indexBuffer;
-        keyPop = ComputeHelper.CreateStructuredBuffer<uint>(indexBuffer.count);
+        //keyPop = ComputeHelper.CreateStructuredBuffer<uint>(indexBuffer.count);
 
         
         sortCompute.SetBuffer(sortKernel, "Entries", indexBuffer);
-        ComputeHelper.SetBuffer(sortCompute, offsetBuffer, "Offsets", calculateOffsetsKernel);
-        ComputeHelper.SetBuffer(sortCompute, indexBuffer, "Entries", calculateOffsetsKernel);
-        ComputeHelper.SetBuffer(sortCompute, keyPop, "keyPop", calculateOffsetsKernel, sortPopsKernel);
-        ComputeHelper.SetBuffer(sortCompute, keyArr, "keyArr", calculateOffsetsKernel, sortPopsKernel); 
+        ComputeHelper.SetBuffer(sortCompute, offsetBuffer, "Offsets", calculateOffsetsKernel, calcKeyPops);
+        ComputeHelper.SetBuffer(sortCompute, indexBuffer, "Entries", calculateOffsetsKernel, calcKeyPops);
+        ComputeHelper.SetBuffer(sortCompute, keyPop, "keyPop", calculateOffsetsKernel, calcKeyPops, sortPopsKernel);
+        ComputeHelper.SetBuffer(sortCompute, keyArr, "keyArr", calculateOffsetsKernel, calcKeyPops, sortPopsKernel); 
     }
   
     // Sorts given buffer of integer values using bitonic merge sort
@@ -85,6 +86,8 @@ public class GPUSort
         Sort();
 
         ComputeHelper.Dispatch(sortCompute, indexBuffer.count, kernelIndex: calculateOffsetsKernel);
+
+        ComputeHelper.Dispatch(sortCompute, indexBuffer.count, kernelIndex: calcKeyPops);
 
         SortPops();
     }

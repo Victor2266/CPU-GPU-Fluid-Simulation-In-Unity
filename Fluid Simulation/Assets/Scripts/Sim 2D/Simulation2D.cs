@@ -114,7 +114,7 @@ public class Simulation2D : MonoBehaviour, IFluidSimulation
     public int numParticles { get; private set; }
 
     ComputeBuffer keyarrbuffer;
-
+    ComputeBuffer keypopsbuffer;
     void Start()
     {
         Debug.Log("If hotkeys are enabled, Controls: Space = Play/Pause, R = Reset, LMB = Attract, RMB = Repel");
@@ -160,7 +160,7 @@ public class Simulation2D : MonoBehaviour, IFluidSimulation
         keyarrbuffer = ComputeHelper.CreateStructuredBuffer<uint>(numParticles);
 
         gpuSort = new();
-        gpuSort.SetBuffers(spatialIndices, spatialOffsets, keyarrbuffer);
+        gpuSort.SetBuffers(spatialIndices, spatialOffsets, keyarrbuffer, keypopsbuffer);
 
 
         // Init display

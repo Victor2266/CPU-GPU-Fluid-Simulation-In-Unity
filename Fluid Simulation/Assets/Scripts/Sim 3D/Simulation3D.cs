@@ -47,6 +47,8 @@ public class Simulation3D : MonoBehaviour
     Spawner3D.SpawnData spawnData;
 
     ComputeBuffer keyarrbuffer;
+
+    ComputeBuffer keypopsbuffer;
     void Start()
     {
         Debug.Log("Controls: Space = Play/Pause, R = Reset");
@@ -82,7 +84,7 @@ public class Simulation3D : MonoBehaviour
         keyarrbuffer = ComputeHelper.CreateStructuredBuffer<uint>(numParticles);
 
         gpuSort = new();
-        gpuSort.SetBuffers(spatialIndices, spatialOffsets, keyarrbuffer);
+        gpuSort.SetBuffers(spatialIndices, spatialOffsets, keyarrbuffer, keypopsbuffer);
 
 
         // Init display
