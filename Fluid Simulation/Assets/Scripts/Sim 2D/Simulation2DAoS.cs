@@ -788,22 +788,19 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
         CPUKernelAOS.particleBuffer.CopyFrom(CPUKernelAOS.particles);
 
         JobHandle viscosity = viscosityCalc.Schedule(numParticles, (int) ThreadBatchSize);
-        if(Monitor.TryEnter(mutex)){
-            ComputeHelper.Dispatch(compute, numParticles, kernelIndex: viscosityKernel);
-        }
+        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: viscosityKernel);
         viscosity.Complete();
-        Monitor.Exit(mutex);
         
         CPUKernelAOS.particleResultBuffer.CopyTo(CPUKernelAOS.particles);
         cpuparticlebuffer.SetData(CPUKernelAOS.particles);
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: mergeCPUParticlesKernel);
-        particleBuffer.GetData(CPUKernelAOS.particles);
-        CPUKernelAOS.particleResultBuffer.CopyFrom(CPUKernelAOS.particles);
-        CPUKernelAOS.particleBuffer.CopyFrom(CPUKernelAOS.particles); 
+        // particleBuffer.GetData(CPUKernelAOS.particles);
+        // CPUKernelAOS.particleResultBuffer.CopyFrom(CPUKernelAOS.particles);
+        // CPUKernelAOS.particleBuffer.CopyFrom(CPUKernelAOS.particles); 
 
         //Debug.Log("CPUComputeCompleted");
-        CPUKernelAOS.particleResultBuffer.CopyTo(CPUKernelAOS.particles);
-        particleBuffer.SetData(CPUKernelAOS.particles);
+        // CPUKernelAOS.particleResultBuffer.CopyTo(CPUKernelAOS.particles);
+        // particleBuffer.SetData(CPUKernelAOS.particles);
 
         keypopsbuffer.GetData(keypops);
 
