@@ -19,6 +19,8 @@ RWStructuredBuffer<uint> SortedValues;
 RWStructuredBuffer<uint> Counts;
 uint numInputs;
 
+RWStructuredBuffer<uint> KeyArr; // For CPU-GPU split
+
 static const int GroupSize = 128;
 
 [numthreads(GroupSize, 1, 1)]
@@ -62,4 +64,5 @@ void CopyBack(uint3 id : SV_DispatchThreadID)
 
 	InputKeys[id.x] = SortedKeys[id.x];
 	InputValues[id.x] = SortedValues[id.x];
+	KeyArr[id.x] = SortedKeys[id.x].key;
 }

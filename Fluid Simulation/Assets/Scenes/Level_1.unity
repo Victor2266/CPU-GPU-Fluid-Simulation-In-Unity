@@ -8357,6 +8357,10 @@ MonoBehaviour:
   circleColliders: []
   sourceObjects: []
   drainObjects: []
+  isCPUComputingEnabled: 0
+  toggleCPUComputing: 0
+  ThreadBatchSize: 50
+  numCPUKeys: 10
 --- !u!4 &1173401526
 Transform:
   m_ObjectHideFlags: 0
@@ -16986,6 +16990,7 @@ SceneRoots:
   - {fileID: 963194228}
   - {fileID: 352399662}
   - {fileID: 271053318}
+  - {fileID: 1173401526}
   - {fileID: 2107056133}
   - {fileID: 638810972}
   - {fileID: 2003172739}
@@ -16995,4 +17000,3 @@ SceneRoots:
   - {fileID: 1854668168}
   - {fileID: 791139166}
   - {fileID: 105816474}
-  - {fileID: 1173401526}

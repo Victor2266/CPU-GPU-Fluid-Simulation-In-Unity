@@ -527,7 +527,7 @@ public struct CPUViscosityCalcAoS : IJobParallelFor
     
 // }
 
-public class CPUParticleKernelAoS : MonoBehaviour
+public class CPUParticleKernelAoS
 {
     public int numParticles;
     public float maxSmoothingRadius;
