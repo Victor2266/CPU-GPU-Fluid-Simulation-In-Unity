@@ -742,46 +742,42 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
             keyarr = CPUKernelAOS.keyarrbuffer,
         };
 
-        //copy data to CPU Buffers (need to figure out how to copy direct from compute buffer to nativearray)
-
+        //Figure out how to send only specific particles to the CPU.
+        
+        //MOVE ALL OF THESE KERNELS TO THE CPU TO IMPROVE PERFORMANCE
         keyarrbuffer.GetData(CPUKernelAOS.keyarr);
-        spatialIndices.GetData(CPUKernelAOS.spatialIndices);
-        spatialOffsets.GetData(CPUKernelAOS.spatialOffsets);
-        particleBuffer.GetData(CPUKernelAOS.particles);
-
         CPUKernelAOS.keyarrbuffer.CopyFrom(CPUKernelAOS.keyarr);
+        spatialIndices.GetData(CPUKernelAOS.spatialIndices);
         CPUKernelAOS.spatialIndicesBuffer.CopyFrom(CPUKernelAOS.spatialIndices);
+        spatialOffsets.GetData(CPUKernelAOS.spatialOffsets);
         CPUKernelAOS.spatialOffsetsBuffer.CopyFrom(CPUKernelAOS.spatialOffsets);
+        particleBuffer.GetData(CPUKernelAOS.particles);
         CPUKernelAOS.particleBuffer.CopyFrom(CPUKernelAOS.particles);
         CPUKernelAOS.particleResultBuffer.CopyFrom(CPUKernelAOS.particles);
 
         
         //Create the threads to calculate either density, pressure, or velocity
-        object mutex = new object();
         JobHandle density = densitycalc.Schedule(numParticles, (int) ThreadBatchSize);
-        if(Monitor.TryEnter(mutex)){
-            ComputeHelper.Dispatch(compute, numParticles, kernelIndex: densityKernel);
-        }
+        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: densityKernel);
         density.Complete();
-        Monitor.Exit(mutex);
  
         //data transfers required to merge CPU and GPU data
-        CPUKernelAOS.particleResultBuffer.CopyTo(CPUKernelAOS.particles);
-        cpuparticlebuffer.SetData(CPUKernelAOS.particles);
-        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: mergeCPUParticlesKernel);
+        
+        //MOVE THE PARTICLE MERGE KERNEL TO CPU AND HAVE BOTH CPU AND GPU DO THEIR OWN MERGE
+        //WILL CUT ALL THESE DATA TRANSFERS DOWN TO 2
+        cpuparticlebuffer.SetData(CPUKernelAOS.particleResultBuffer);
+        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: mergeCPUParticlesKernel); 
         particleBuffer.GetData(CPUKernelAOS.particles);
         CPUKernelAOS.particleResultBuffer.CopyFrom(CPUKernelAOS.particles);
         CPUKernelAOS.particleBuffer.CopyFrom(CPUKernelAOS.particles);
 
         JobHandle pressure = pressureCalc.Schedule(numParticles, (int) ThreadBatchSize);
-        if(Monitor.TryEnter(mutex)){
-            ComputeHelper.Dispatch(compute, numParticles, kernelIndex: pressureKernel);
-        }
+        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: pressureKernel);
         pressure.Complete();
-        Monitor.Exit(mutex);
 
-        CPUKernelAOS.particleResultBuffer.CopyTo(CPUKernelAOS.particles);
-        cpuparticlebuffer.SetData(CPUKernelAOS.particles);
+        //MOVE THE PARTICLE MERGE KERNEL TO CPU AND HAVE BOTH CPU AND GPU DO THEIR OWN MERGE
+        //WILL CUT ALL THESE DATA TRANSFERS DOWN TO 2
+        cpuparticlebuffer.SetData(CPUKernelAOS.particleResultBuffer);
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: mergeCPUParticlesKernel);
         particleBuffer.GetData(CPUKernelAOS.particles);
         CPUKernelAOS.particleResultBuffer.CopyFrom(CPUKernelAOS.particles);
@@ -791,26 +787,10 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: viscosityKernel);
         viscosity.Complete();
         
-        CPUKernelAOS.particleResultBuffer.CopyTo(CPUKernelAOS.particles);
-        cpuparticlebuffer.SetData(CPUKernelAOS.particles);
+        cpuparticlebuffer.SetData(CPUKernelAOS.particleResultBuffer);
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: mergeCPUParticlesKernel);
-        // particleBuffer.GetData(CPUKernelAOS.particles);
-        // CPUKernelAOS.particleResultBuffer.CopyFrom(CPUKernelAOS.particles);
-        // CPUKernelAOS.particleBuffer.CopyFrom(CPUKernelAOS.particles); 
-
-        //Debug.Log("CPUComputeCompleted");
-        // CPUKernelAOS.particleResultBuffer.CopyTo(CPUKernelAOS.particles);
-        // particleBuffer.SetData(CPUKernelAOS.particles);
 
         keypopsbuffer.GetData(keypops);
 
-        // CPUKernelAOS.fluidParamBuffer.Dispose();
-        // CPUKernelAOS.scalingFactorsBuffer.Dispose();
-        // CPUKernelAOS.spatialIndicesBuffer.Dispose();
-        // CPUKernelAOS.spatialOffsetsBuffer.Dispose();
-        // CPUKernelAOS.particleBuffer.Dispose();
-        // CPUKernelAOS.offsets2DBuffer.Dispose();
-        // CPUKernelAOS.particleResultBuffer.Dispose();
-        // CPUKernelAOS.keyarrbuffer.Dispose();
     }
 }
