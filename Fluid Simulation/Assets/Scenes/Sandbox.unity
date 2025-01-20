@@ -1943,8 +1943,9 @@ MonoBehaviour:
   interactionRadius: 3
   interactionStrength: 360
   spawnRate: 20
-  manuallySelectFluidTypes: 0
-  fluidDataArray: []
+  manuallySelectFluidTypes: 1
+  fluidDataArray:
+  - {fileID: 11400000, guid: fd36f3ca91602a445a598b2e944c73e5, type: 2}
   compute: {fileID: 7200000, guid: c4e04fbd8b42e9e49be8bbd01966b4da, type: 3}
   spawner: {fileID: 1080519536}
   display: {fileID: 1080519535}
