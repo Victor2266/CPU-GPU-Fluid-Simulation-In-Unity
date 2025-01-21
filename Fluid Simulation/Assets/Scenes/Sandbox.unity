@@ -1991,7 +1991,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 895837b52d5fc53409ded3589d4da696, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  particleCount: 30000
+  particleCount: 10000
   initialVelocity: {x: 0, y: 0}
   spawnCentre: {x: 3.35, y: 0.51}
   spawnSize: {x: 7, y: 7}
@@ -2041,6 +2041,7 @@ MonoBehaviour:
   - {fileID: 479231988}
   isCPUComputingEnabled: 1
   toggleCPUComputing: 1
+  keypops: 
   ThreadBatchSize: 1000
   numCPUKeys: 5
 --- !u!4 &1080519538

@@ -118,7 +118,6 @@ void calculateKeyPops(uint3 id : SV_DispatchThreadID)
 
 	if (key != keyPrev)
 	{
-		Offsets[key] = i;
 		keyPop[keyPrev] = i - Offsets[keyPrev];
 		keyArr[keyPrev] = keyPrev;
 	}
