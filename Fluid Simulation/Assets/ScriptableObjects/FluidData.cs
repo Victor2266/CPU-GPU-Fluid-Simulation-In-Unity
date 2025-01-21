@@ -10,6 +10,14 @@ public enum FluidType
     Lava
 }
 
+public enum VisualStyle
+{
+    VelocityBased,
+    Temperature,
+    Glowing,
+    Fuzzy
+}
+
 // Struct for passing to compute shader.
 [System.Serializable]
 [StructLayout(LayoutKind.Sequential, Size = 32)]
@@ -26,6 +34,7 @@ public struct FluidParam
     public float startTemperature;
 };
 
+// These are calculated once based on the smoothing radius of each fluid
 [System.Serializable]
 [StructLayout(LayoutKind.Sequential, Size = 20)]
 public struct ScalingFactors
@@ -36,6 +45,26 @@ public struct ScalingFactors
 	public float SpikyPow3Derivative;
 	public float SpikyPow2Derivative;
 };
+
+[System.Serializable]
+public struct VisualParameters
+{
+    public VisualStyle style;
+    public Gradient colorGradient;
+    public float visualScale;
+    
+    // General parameters
+    public float baseOpacity;
+    public float noiseScale;
+    public float timeScale;
+    
+    // Glow parameters
+    public float glowIntensity;
+    public float glowFalloff;  // Added glow falloff parameter
+    public float minPropertyValue; // For temperature mapping
+    public float maxPropertyValue;
+    
+}
 
 [CreateAssetMenu(fileName = "New Fluid", menuName = "Fluids/New Fluid Type")]
 public class FluidData : ScriptableObject
@@ -74,14 +103,9 @@ public class FluidData : ScriptableObject
     [Tooltip("Starting temperature of the fluid")]
     public float startTemperature = 22f;
 
-
-    [Header("Shader Properties")]
-    [Tooltip("What Type of Shader to use")]
-    public Shader shader;
-    public float scale;
-	public Gradient colourMap;
-	public int gradientResolution;
-	public float velocityDisplayMax;
+    [Header("Visual Properties")]
+    [Tooltip("Setup the look of the fluid")]
+    public VisualParameters visualParams;
 
     // Validation method to ensure values stay within reasonable bounds
     private void OnValidate()
@@ -121,4 +145,37 @@ public class FluidData : ScriptableObject
         };
         return scalingFactors;
     }
+
+    // Struct for passing visual data to compute shader
+    [System.Serializable]
+    [StructLayout(LayoutKind.Sequential)]
+    public struct VisualParamBuffer
+    {
+        public int visualStyle;
+        public float visualScale;
+        public float baseOpacity;
+        public float noiseScale;
+        public float timeScale;
+        public float glowIntensity;
+        public float glowFalloff; 
+        public float minValue;
+        public float maxValue;
+    }
+
+    public VisualParamBuffer GetVisualParams()
+    {
+        return new VisualParamBuffer
+        {
+            visualStyle = (int)visualParams.style,
+            visualScale = visualParams.visualScale,
+            baseOpacity = visualParams.baseOpacity,
+            noiseScale = visualParams.noiseScale,
+            timeScale = visualParams.timeScale,
+            glowIntensity = visualParams.glowIntensity,
+            glowFalloff = visualParams.glowFalloff,
+            minValue = visualParams.minPropertyValue,
+            maxValue = visualParams.maxPropertyValue
+        };
+    }
+
 };

@@ -10,34 +10,34 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e12b9e3c063da7442bbf0a39f9cba066, type: 3}
-  m_Name: Honey
+  m_Name: Beer
   m_EditorClassIdentifier: 
-  fluidType: 3
+  fluidType: 1
   gravity: -12
-  collisionDamping: 0.5
-  smoothingRadius: 0.45
-  targetDensity: 128
-  pressureMultiplier: 1000
-  nearPressureMultiplier: 500
-  viscosityStrength: 1
+  collisionDamping: 0.8
+  smoothingRadius: 0.35
+  targetDensity: 55
+  pressureMultiplier: 500
+  nearPressureMultiplier: 18
+  viscosityStrength: 0.06
   startTemperature: 22
   visualParams:
     style: 0
     colorGradient:
       serializedVersion: 2
-      key0: {r: 1, g: 0.74509805, b: 0, a: 1}
-      key1: {r: 1, g: 0.61764705, b: 0, a: 1}
-      key2: {r: 1, g: 0.995098, b: 0, a: 0}
-      key3: {r: 1, g: 0.90821254, b: 0, a: 0}
-      key4: {r: 0, g: 0, b: 0, a: 0}
+      key0: {r: 1, g: 0.8217412, b: 0, a: 1}
+      key1: {r: 1.0002804, g: 0.93725497, b: 0.73333335, a: 1}
+      key2: {r: 1, g: 0.7600515, b: 0, a: 0}
+      key3: {r: 1, g: 0.8845242, b: 0.48627448, a: 0}
+      key4: {r: 1, g: 1, b: 1, a: 0}
       key5: {r: 0, g: 0, b: 0, a: 0}
       key6: {r: 0, g: 0, b: 0, a: 0}
       key7: {r: 0, g: 0, b: 0, a: 0}
-      ctime0: 4064
-      ctime1: 33191
-      ctime2: 46453
-      ctime3: 65535
-      ctime4: 0
+      ctime0: 4048
+      ctime1: 18890
+      ctime2: 33191
+      ctime3: 46738
+      ctime4: 53083
       ctime5: 0
       ctime6: 0
       ctime7: 0
@@ -51,13 +51,13 @@ MonoBehaviour:
       atime7: 0
       m_Mode: 2
       m_ColorSpace: -1
-      m_NumColorKeys: 4
+      m_NumColorKeys: 5
       m_NumAlphaKeys: 2
-    visualScale: 0.2
+    visualScale: 0.23
     baseOpacity: 1
     noiseScale: 0
     timeScale: 0
     glowIntensity: 0
     glowFalloff: 1
     minPropertyValue: 0
-    maxPropertyValue: 24
+    maxPropertyValue: 6.5

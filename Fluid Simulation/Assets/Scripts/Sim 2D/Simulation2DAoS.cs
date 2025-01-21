@@ -256,7 +256,7 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
 
 
         // Init display
-        display.InitAoS(this);
+        display.Init(this);
 
         initializeCPUKernelSettingsAoS();
     }
@@ -670,7 +670,7 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
 	    CPUKernelAOS.offsets[8] = new int2(1, -1);
 
         CPUKernelAOS.fluidParams = new FluidParam[fluidParamArr.Length];
-        CPUKernelAOS.scalingFactors = new ScalingFactors[fluidParamArr.Length];
+        CPUKernelAOS.scalingFactors = new ScalingFactors[scalingFactorsArr.Length];
         CPUKernelAOS.maxSmoothingRadius = maxSmoothingRadius;
         CPUKernelAOS.boxCollidersData = new OrientedBox[boxColliders.Length];
         CPUKernelAOS.circleCollidersData = new Circle[circleColliders.Length];
@@ -679,23 +679,48 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
         CPUKernelAOS.spatialIndices = new uint3[numParticles];
         CPUKernelAOS.spatialOffsets = new uint[numParticles];
         CPUKernelAOS.particles = new Particle[numParticles];
-        fluidParamArr.CopyTo(CPUKernelAOS.fluidParams, 0);
-        scalingFactorsArr.CopyTo(CPUKernelAOS.scalingFactors, 0);
+        
         CPUKernelAOS.keyarr = new uint[numParticles];
-        CPUKernelAOS.fluidParamBuffer = new NativeArray<FluidParam>(CPUKernelAOS.fluidParams.Length, Allocator.Persistent);
-        CPUKernelAOS.scalingFactorsBuffer = new NativeArray<ScalingFactors>(CPUKernelAOS.scalingFactors.Length, Allocator.Persistent);
-        CPUKernelAOS.spatialIndicesBuffer = new NativeArray<uint3>(numParticles, Allocator.Persistent);
-        CPUKernelAOS.spatialOffsetsBuffer = new NativeArray<uint>(numParticles, Allocator.Persistent);
-        CPUKernelAOS.offsets2DBuffer = new NativeArray<int2>(CPUKernelAOS.offsets.Length, Allocator.Persistent);
-        CPUKernelAOS.particleBuffer = new NativeArray<Particle>(numParticles, Allocator.Persistent);
-        CPUKernelAOS.particleResultBuffer = new NativeArray<Particle>(numParticles, Allocator.Persistent);
-        CPUKernelAOS.keyarrbuffer = new NativeArray<uint>(numParticles, Allocator.Persistent);
+        // CPUKernelAOS.fluidParamBuffer = new NativeArray<FluidParam>(CPUKernelAOS.fluidParams.Length, Allocator.Persistent);
+        // CPUKernelAOS.scalingFactorsBuffer = new NativeArray<ScalingFactors>(CPUKernelAOS.scalingFactors.Length, Allocator.Persistent);
+        // CPUKernelAOS.spatialIndicesBuffer = new NativeArray<uint3>(numParticles, Allocator.Persistent);
+        // CPUKernelAOS.spatialOffsetsBuffer = new NativeArray<uint>(numParticles, Allocator.Persistent);
+        // CPUKernelAOS.offsets2DBuffer = new NativeArray<int2>(CPUKernelAOS.offsets.Length, Allocator.Persistent);
+        // CPUKernelAOS.particleBuffer = new NativeArray<Particle>(numParticles, Allocator.Persistent);
+        // CPUKernelAOS.particleResultBuffer = new NativeArray<Particle>(numParticles, Allocator.Persistent);
+        // CPUKernelAOS.keyarrbuffer = new NativeArray<uint>(numParticles, Allocator.Persistent);
         CPUKernelAOS.fluidParamBuffer.CopyFrom(fluidParamArr);
         CPUKernelAOS.scalingFactorsBuffer.CopyFrom(scalingFactorsArr);
         CPUKernelAOS.offsets2DBuffer.CopyFrom(CPUKernelAOS.offsets);
     }
     
     public void runCPUComputeTest(){
+        //initialize local arrays
+
+        fluidParamArr.CopyTo(CPUKernelAOS.fluidParams, 0);
+        scalingFactorsArr.CopyTo(CPUKernelAOS.scalingFactors, 0);
+        //Initialize all CPU buffers
+        CPUKernelAOS.fluidParamBuffer = new NativeArray<FluidParam>(CPUKernelAOS.fluidParams.Length, Allocator.TempJob);
+        CPUKernelAOS.scalingFactorsBuffer = new NativeArray<ScalingFactors>(CPUKernelAOS.scalingFactors.Length, Allocator.TempJob);
+        CPUKernelAOS.spatialIndicesBuffer = new NativeArray<uint3>(numParticles, Allocator.TempJob);
+        CPUKernelAOS.spatialOffsetsBuffer = new NativeArray<uint>(numParticles, Allocator.TempJob);
+        CPUKernelAOS.particleBuffer = new NativeArray<Particle>(numParticles, Allocator.TempJob);
+        CPUKernelAOS.offsets2DBuffer = new NativeArray<int2>(CPUKernelAOS.offsets.Length, Allocator.TempJob);
+        CPUKernelAOS.particleResultBuffer = new NativeArray<Particle>(numParticles, Allocator.TempJob);
+        CPUKernelAOS.keyarrbuffer = new NativeArray<uint>(numParticles, Allocator.TempJob);
+        //copy data to CPU Buffers (need to figure out how to copy direct from compute buffer to nativearray)
+        keyarrbuffer.GetData(CPUKernelAOS.keyarr);
+        CPUKernelAOS.keyarrbuffer.CopyFrom(CPUKernelAOS.keyarr);
+        CPUKernelAOS.offsets2DBuffer.CopyFrom(CPUKernelAOS.offsets);
+        CPUKernelAOS.fluidParamBuffer.CopyFrom(fluidParamArr);
+        CPUKernelAOS.scalingFactorsBuffer.CopyFrom(scalingFactorsArr);
+        spatialIndices.GetData(CPUKernelAOS.spatialIndices);
+        CPUKernelAOS.spatialIndicesBuffer.CopyFrom(CPUKernelAOS.spatialIndices);
+        spatialOffsets.GetData(CPUKernelAOS.spatialOffsets);
+        CPUKernelAOS.spatialOffsetsBuffer.CopyFrom(CPUKernelAOS.spatialOffsets);
+        particleBuffer.GetData(CPUKernelAOS.particles);
+        CPUKernelAOS.particleBuffer.CopyFrom(CPUKernelAOS.particles);
+        CPUKernelAOS.particleResultBuffer.CopyFrom(CPUKernelAOS.particles);
 
         //create each job type and assign the buffers to the jobs
         CPUDensityCalcAoS densitycalc = new CPUDensityCalcAoS{
@@ -758,15 +783,15 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
         
         //Create the threads to calculate either density, pressure, or velocity
         JobHandle density = densitycalc.Schedule(numParticles, (int) ThreadBatchSize);
-        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: densityKernel);
+        ComputeHelper.Dispatch(compute, numParticles+1, kernelIndex: densityKernel);
         density.Complete();
+        
  
         //data transfers required to merge CPU and GPU data
-        
-        //MOVE THE PARTICLE MERGE KERNEL TO CPU AND HAVE BOTH CPU AND GPU DO THEIR OWN MERGE
-        //WILL CUT ALL THESE DATA TRANSFERS DOWN TO 2
+        // CPUKernelAOS.particleResultBuffer.CopyTo(CPUKernelAOS.particles);
+        // cpuparticlebuffer.SetData(CPUKernelAOS.particleResultBuffer);
         cpuparticlebuffer.SetData(CPUKernelAOS.particleResultBuffer);
-        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: mergeCPUParticlesKernel); 
+        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: mergeCPUParticlesKernel);
         particleBuffer.GetData(CPUKernelAOS.particles);
         CPUKernelAOS.particleResultBuffer.CopyFrom(CPUKernelAOS.particles);
         CPUKernelAOS.particleBuffer.CopyFrom(CPUKernelAOS.particles);
@@ -774,9 +799,10 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
         JobHandle pressure = pressureCalc.Schedule(numParticles, (int) ThreadBatchSize);
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: pressureKernel);
         pressure.Complete();
+        
 
-        //MOVE THE PARTICLE MERGE KERNEL TO CPU AND HAVE BOTH CPU AND GPU DO THEIR OWN MERGE
-        //WILL CUT ALL THESE DATA TRANSFERS DOWN TO 2
+        // CPUKernelAOS.particleResultBuffer.CopyTo(CPUKernelAOS.particles);
+        // cpuparticlebuffer.SetData(CPUKernelAOS.particles);
         cpuparticlebuffer.SetData(CPUKernelAOS.particleResultBuffer);
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: mergeCPUParticlesKernel);
         particleBuffer.GetData(CPUKernelAOS.particles);
@@ -787,10 +813,18 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: viscosityKernel);
         viscosity.Complete();
         
+        
+        // CPUKernelAOS.particleResultBuffer.CopyTo(CPUKernelAOS.particles);
+        // cpuparticlebuffer.SetData(CPUKernelAOS.particles);
         cpuparticlebuffer.SetData(CPUKernelAOS.particleResultBuffer);
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: mergeCPUParticlesKernel);
+        // particleBuffer.GetData(CPUKernelAOS.particles);
+        // CPUKernelAOS.particleResultBuffer.CopyFrom(CPUKernelAOS.particles);
+        // CPUKernelAOS.particleBuffer.CopyFrom(CPUKernelAOS.particles); 
 
-        keypopsbuffer.GetData(keypops);
+        // //Debug.Log("CPUComputeCompleted");
+        // CPUKernelAOS.particleResultBuffer.CopyTo(CPUKernelAOS.particles);
+        // particleBuffer.SetData(CPUKernelAOS.particles);
 
     }
 }
