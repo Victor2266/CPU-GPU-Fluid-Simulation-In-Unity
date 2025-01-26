@@ -99,4 +99,9 @@ public class GPUSort
         ComputeHelper.Dispatch(sortCompute, indexBuffer.count, kernelIndex: calculateOffsetsKernel);
     }
 
+    public void sortOffsets()
+    {
+        ComputeHelper.Dispatch(sortCompute, indexBuffer.count, kernelIndex: calculateOffsetsKernel);
+        ComputeHelper.Dispatch(sortCompute, indexBuffer.count, kernelIndex: calcKeyPops);
+    }
 }

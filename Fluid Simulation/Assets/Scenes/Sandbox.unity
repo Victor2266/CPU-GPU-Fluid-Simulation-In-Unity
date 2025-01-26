@@ -2041,8 +2041,7 @@ MonoBehaviour:
   - {fileID: 479231988}
   isCPUComputingEnabled: 1
   toggleCPUComputing: 1
-  keypops: 
-  ThreadBatchSize: 1000
+  keypops: []
   numCPUKeys: 10
 --- !u!4 &1080519538
 Transform:

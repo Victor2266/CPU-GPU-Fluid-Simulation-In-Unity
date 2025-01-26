@@ -16,13 +16,14 @@ using System.Runtime.InteropServices.WindowsRuntime;
 using DG.Tweening.Plugins;
 using UnityEngine.ParticleSystemJobs;
 using Unity.Jobs.LowLevel;
+using System.Security.Cryptography;
 [BurstCompile]
 public struct CPUDensityCalcAoS : IJobParallelFor
 {
     [WriteOnly]
     public NativeArray<Particle> densityOut;
     [ReadOnly]
-    public NativeArray<uint> keyarr;
+    public NativeArray<uint2> keyarr;
     [ReadOnly]
     public uint numCPUKeys;
     [ReadOnly]
@@ -113,7 +114,7 @@ public struct CPUDensityCalcAoS : IJobParallelFor
         uint originKey = KeyFromHash(originHash, numParticles);
         int j=0;
         for(j=0; j<numCPUKeys; j++){
-            if(originKey == keyarr[j]){
+            if(originKey == keyarr[j][0]){
                 break;
             }
         }
@@ -179,7 +180,7 @@ public struct CPUPressureCalcAoS : IJobParallelFor
     [WriteOnly]
     public NativeArray<Particle> pressureOut;
     [ReadOnly]
-    public NativeArray<uint> keyarr;
+    public NativeArray<uint2> keyarr;
     [ReadOnly]
     public uint numCPUKeys;
     [ReadOnly]
@@ -274,7 +275,7 @@ public struct CPUPressureCalcAoS : IJobParallelFor
         uint originKey = KeyFromHash(originHash, numParticles);
         int j=0;
         for(j=0; j<numCPUKeys; j++){
-            if(originKey == keyarr[j]){
+            if(originKey == keyarr[j][0]){
                 break;
             }
         }
@@ -356,7 +357,7 @@ public struct CPUViscosityCalcAoS : IJobParallelFor
     [WriteOnly]
     public NativeArray<Particle> viscosityOut;
     [ReadOnly]
-    public NativeArray<uint> keyarr;
+    public NativeArray<uint2> keyarr;
     [ReadOnly]
     public uint numCPUKeys;
     [ReadOnly]
@@ -432,7 +433,7 @@ public struct CPUViscosityCalcAoS : IJobParallelFor
         uint originKey = KeyFromHash(originHash, numParticles);
         int j=0;
         for(j=0; j<numCPUKeys; j++){
-            if(originKey == keyarr[j]){
+            if(originKey == keyarr[j][0]){
                 break;
             }
         }
@@ -541,6 +542,46 @@ public struct updateSpatialHash : IJobParallelFor
     }
 }
 
+public class IndicesComparer : IComparer<uint3>
+{
+    public int Compare(uint3 index1, uint3 index2)
+    {
+            return index1.z.CompareTo(index2.z);
+    }
+}
+
+public class KeyPopsComparer : IComparer<uint2>
+{
+    public int Compare(uint2 index1, uint2 index2)
+    {
+        if(index1.y < index2.y){
+            return 1;
+        }else if (index1.y == index2.y){
+            return 0;
+        }else{
+            return -1;
+        }
+    }
+}
+
+public struct sortIndices : IJob
+{
+    public NativeArray<uint3> spatialIndices;
+
+    public void Execute(){
+        spatialIndices.Sort(new IndicesComparer());
+    }
+}
+
+public struct sortPops : IJob
+{
+    public NativeArray<uint2> keyarr;
+
+    public void Execute(){
+        keyarr.Sort(new KeyPopsComparer());
+    }
+}
+
 [BurstCompile]
 public struct sortOffsets : IJob
 {
@@ -598,7 +639,6 @@ public class CPUParticleKernelAoS
     public NativeArray<Particle> particleBuffer;
     public NativeArray<Particle> particleResultBuffer;
     public NativeArray<int2> offsets2DBuffer;
-    public NativeArray<uint> keypopsbuffer;
-    public NativeArray<uint> keyarrbuffer;
+    public NativeArray<uint2> keyarrbuffer;
 
 }
