@@ -15,7 +15,7 @@ using System.Linq;
 using System.Runtime.InteropServices.WindowsRuntime;
 using DG.Tweening.Plugins;
 using UnityEngine.ParticleSystemJobs;
-
+using Unity.Jobs.LowLevel;
 [BurstCompile]
 public struct CPUDensityCalcAoS : IJobParallelFor
 {
@@ -491,41 +491,85 @@ public struct CPUViscosityCalcAoS : IJobParallelFor
     }
 }
 
-// public class CPUParticleKernel : MonoBehaviour
-// {
-//     public int numParticles;
-//     public float maxSmoothingRadius;
-//     public float deltaTime;
-//     public int2[] offsets;
-//     public FluidParam[] fluidParams;
-//     public ScalingFactors[] scalingFactors;
-//     public OrientedBox[] boxCollidersData;
-//     public Circle[] circleCollidersData;
-//     public OrientedBox[] drainData;
-//     public Circle[] sourceData;
-//     public uint3[] spatialIndices;
-//     public uint[] spatialOffsets;
-//     public uint[] CPUCellHashs;
-
-//     public float2[] positions;
-//     public float2[] predictedPositions;
-//     public float2[] densities;
-//     public float2[] velocities;
-//     public NativeArray<FluidParam> fluidParamBuffer;
-//     public NativeArray<ScalingFactors> scalingFactorsBuffer;
-//     public NativeArray<OrientedBox> boxBuffer;
-//     public NativeArray<Circle> circleBuffer;
-//     public NativeArray<Circle> sourceBuffer;
-//     public NativeArray<OrientedBox> drainBuffer;
-//     public NativeArray<uint3> spatialIndicesBuffer;
-//     public NativeArray<uint> spatialOffsetsBuffer;
-//     public NativeArray<float2> positionBuffer;
-//     public NativeArray<float2> predictedPositionBuffer;
-//     public NativeArray<float2> densitiesBuffer;
-//     public NativeArray<float2> velocitiesBuffer;
-//     public NativeArray<int2> offsets2DBuffer;
+[BurstCompile]
+public struct updateSpatialHash : IJobParallelFor
+{
+    [WriteOnly]
+    public NativeArray<uint> spatialOffsets;
+    [WriteOnly]
+    public NativeArray<uint3> spatialIndices;
+    [ReadOnly]
+    public uint numParticles;
+    [ReadOnly]
+    public NativeArray<Particle> particles;
+    [ReadOnly]
+    public float maxSmoothingRadius;
     
-// }
+    // Constants used for hashing
+    const uint hashK1 = 15823;
+    const uint hashK2 = 9737333;
+    
+    // Convert floating point position into an integer cell coordinate
+    public int2 GetCell2D(float2 position, float radius)
+    {
+    	int2 temp = new int2(0,0);
+        temp[0] = (int)Math.Floor(position[0] / radius);
+        temp[1] = (int)Math.Floor(position[1] / radius);
+        return temp;
+    }
+    
+    // Hash cell coordinate to a single unsigned integer
+    public uint HashCell2D(int2 cell)
+    {
+    	cell = (int2)(uint2)cell;
+    	uint a = (uint)(cell.x * hashK1);
+    	uint b = (uint)(cell.y * hashK2);
+    	return (a + b);
+    }
+    
+    public uint KeyFromHash(uint hash, uint tableSize)
+    {
+    	return hash % tableSize;
+    }
+
+    public void Execute(int index){
+        spatialOffsets[index] = numParticles;
+        int2 cell = GetCell2D(particles[index].predictedPosition, maxSmoothingRadius);
+	    uint hash = HashCell2D(cell);
+	    uint key = KeyFromHash(hash, numParticles);
+	    spatialIndices[index] = new uint3((uint) index, hash, key);
+    }
+}
+
+[BurstCompile]
+public struct sortOffsets : IJob
+{
+    [ReadOnly]
+    public NativeArray<uint3> spatialIndices;
+    [ReadOnly]
+    public uint numParticles;
+    [WriteOnly]
+    public NativeArray<uint> spatialOffsets;
+    [WriteOnly]
+    public NativeArray<uint2> sortedKeys;
+    
+    public void Execute(){
+        uint keyprev = spatialIndices[0][2];
+        uint pop = 0;
+        for(uint i=0; i<numParticles; i++){
+            uint key = spatialIndices[(int) i][2];
+            if(key != keyprev){
+                spatialOffsets[(int) keyprev] = i;
+                keyprev = key;
+                sortedKeys[(int) keyprev] = new uint2(keyprev, pop);
+                pop = 0;
+            }
+            pop++;
+        }
+    }
+}
+
+
 
 public class CPUParticleKernelAoS
 {

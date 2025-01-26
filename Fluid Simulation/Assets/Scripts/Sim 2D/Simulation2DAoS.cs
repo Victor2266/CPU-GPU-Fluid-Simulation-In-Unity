@@ -9,7 +9,6 @@ using Unity.Collections;
 using Unity.Jobs;
 using JetBrains.Annotations;
 
-
 public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
 {
     public event System.Action SimulationStepCompleted;
@@ -137,7 +136,6 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
     ComputeBuffer keyarrbuffer;
     ComputeBuffer keypopsbuffer;
     public uint[] keypops;
-    public uint ThreadBatchSize = 1000;
     public uint numCPUKeys = 10;
     void Start()
     { 
@@ -665,6 +663,7 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
         return numParticles;
     }
     void initializeCPUKernelSettingsAoS(){
+        
         CPUKernelAOS.numParticles = numParticles;
         CPUKernelAOS.offsets = new int2[9];
 
@@ -703,6 +702,25 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
         CPUKernelAOS.offsets2DBuffer.CopyFrom(CPUKernelAOS.offsets);
     }
     
+    public static int compareSpatialIndices(uint3 x, uint3 y){
+        if (x[2] > y[2]){
+            return 1;
+        }else if (x[2] == y[2]){
+            return 0;
+        }else{
+            return -1;
+        }
+    }
+
+    public static int compareKeyPops(uint2 x, uint2 y){
+        if (x[2] > y[2]){
+            return 1;
+        }else if (x[2] == y[2]){
+            return 0;
+        }else{
+            return -1;
+        }
+    }
     public void runCPUComputeTest(){
 
         keyarrbuffer.GetData(CPUKernelAOS.keyarr);
@@ -759,9 +777,9 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
             numCPUKeys = numCPUKeys,
             keyarr = CPUKernelAOS.keyarrbuffer,
         };
-        
+        ThreadPool.GetAvailableThreads(out int availableWorkerThreads, out int availableCompletionPortThreads);
         //Create the threads to calculate either density, pressure, or velocity
-        JobHandle density = densitycalc.Schedule(numParticles, (int) ThreadBatchSize);
+        JobHandle density = densitycalc.Schedule(numParticles, Math.Max(1, numParticles / availableWorkerThreads));
         ComputeHelper.Dispatch(compute, numParticles+1, kernelIndex: densityKernel);
         density.Complete();
         
@@ -772,7 +790,8 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
         CPUKernelAOS.particleResultBuffer.CopyFrom(CPUKernelAOS.particles);
         CPUKernelAOS.particleBuffer.CopyFrom(CPUKernelAOS.particles);
 
-        JobHandle pressure = pressureCalc.Schedule(numParticles, (int) ThreadBatchSize);
+        ThreadPool.GetAvailableThreads(out availableWorkerThreads, out availableCompletionPortThreads);
+        JobHandle pressure = pressureCalc.Schedule(numParticles, Math.Max(1, numParticles / availableWorkerThreads));
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: pressureKernel);
         pressure.Complete();
         
@@ -783,7 +802,8 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
         CPUKernelAOS.particleResultBuffer.CopyFrom(CPUKernelAOS.particles);
         CPUKernelAOS.particleBuffer.CopyFrom(CPUKernelAOS.particles);
 
-        JobHandle viscosity = viscosityCalc.Schedule(numParticles, (int) ThreadBatchSize);
+        ThreadPool.GetAvailableThreads(out availableWorkerThreads, out availableCompletionPortThreads);
+        JobHandle viscosity = viscosityCalc.Schedule(numParticles, Math.Max(1, numParticles / availableWorkerThreads));
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: viscosityKernel);
         viscosity.Complete();
         

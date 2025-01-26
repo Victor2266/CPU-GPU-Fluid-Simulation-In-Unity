@@ -69,8 +69,6 @@ void CalculateOffsets(uint3 id : SV_DispatchThreadID)
 
 	uint key = Entries[i].key;
 	uint keyPrev = i == 0 ? null : Entries[i - 1].key;
-	keyPop[i] = 0;
-	keyArr[i] = 0;
 	if (key != keyPrev)
 	{
 		Offsets[key] = i;
@@ -120,5 +118,9 @@ void calculateKeyPops(uint3 id : SV_DispatchThreadID)
 	{
 		keyPop[keyPrev] = i - Offsets[keyPrev];
 		keyArr[keyPrev] = keyPrev;
+	}
+	if(i == numEntries -1){
+		keyPop[key] = i - Offsets[key];
+		keyArr[key] = key;
 	}
 }
