@@ -23,7 +23,7 @@ public struct CPUDensityCalcAoS : IJobParallelFor
     [WriteOnly]
     public NativeArray<Particle> densityOut;
     [ReadOnly]
-    public NativeArray<uint2> keyarr;
+    public NativeArray<uint> keyarr;
     [ReadOnly]
     public uint numCPUKeys;
     [ReadOnly]
@@ -114,7 +114,7 @@ public struct CPUDensityCalcAoS : IJobParallelFor
         uint originKey = KeyFromHash(originHash, numParticles);
         int j=0;
         for(j=0; j<numCPUKeys; j++){
-            if(originKey == keyarr[j][0]){
+            if(originKey == keyarr[j]){
                 break;
             }
         }
@@ -180,7 +180,7 @@ public struct CPUPressureCalcAoS : IJobParallelFor
     [WriteOnly]
     public NativeArray<Particle> pressureOut;
     [ReadOnly]
-    public NativeArray<uint2> keyarr;
+    public NativeArray<uint> keyarr;
     [ReadOnly]
     public uint numCPUKeys;
     [ReadOnly]
@@ -275,7 +275,7 @@ public struct CPUPressureCalcAoS : IJobParallelFor
         uint originKey = KeyFromHash(originHash, numParticles);
         int j=0;
         for(j=0; j<numCPUKeys; j++){
-            if(originKey == keyarr[j][0]){
+            if(originKey == keyarr[j]){
                 break;
             }
         }
@@ -357,7 +357,7 @@ public struct CPUViscosityCalcAoS : IJobParallelFor
     [WriteOnly]
     public NativeArray<Particle> viscosityOut;
     [ReadOnly]
-    public NativeArray<uint2> keyarr;
+    public NativeArray<uint> keyarr;
     [ReadOnly]
     public uint numCPUKeys;
     [ReadOnly]
@@ -433,7 +433,7 @@ public struct CPUViscosityCalcAoS : IJobParallelFor
         uint originKey = KeyFromHash(originHash, numParticles);
         int j=0;
         for(j=0; j<numCPUKeys; j++){
-            if(originKey == keyarr[j][0]){
+            if(originKey == keyarr[j]){
                 break;
             }
         }
@@ -639,6 +639,6 @@ public class CPUParticleKernelAoS
     public NativeArray<Particle> particleBuffer;
     public NativeArray<Particle> particleResultBuffer;
     public NativeArray<int2> offsets2DBuffer;
-    public NativeArray<uint2> keyarrbuffer;
+    public NativeArray<uint> keyarrbuffer;
 
 }

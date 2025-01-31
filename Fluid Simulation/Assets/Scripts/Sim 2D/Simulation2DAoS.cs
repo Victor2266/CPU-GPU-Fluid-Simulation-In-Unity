@@ -323,8 +323,8 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
     {
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: SpawnParticlesKernel);
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: externalForcesKernel);
-        // ComputeHelper.Dispatch(compute, numParticles, kernelIndex: spatialHashKernel);
-        // gpuSort.SortAndCalculateOffsetsCPUGPU();
+        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: spatialHashKernel);
+        gpuSort.SortAndCalculateOffsetsCPUGPU();
         if(isCPUComputingEnabled){
             if(toggleCPUComputing){
                 runCPUComputeTest();
@@ -700,7 +700,7 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
         CPUKernelAOS.offsets2DBuffer = new NativeArray<int2>(CPUKernelAOS.offsets.Length, Allocator.Persistent);
         CPUKernelAOS.particleBuffer = new NativeArray<Particle>(numParticles, Allocator.Persistent);
         CPUKernelAOS.particleResultBuffer = new NativeArray<Particle>(numParticles, Allocator.Persistent);
-        CPUKernelAOS.keyarrbuffer = new NativeArray<uint2>(numParticles, Allocator.Persistent);
+        CPUKernelAOS.keyarrbuffer = new NativeArray<uint>(numParticles, Allocator.Persistent);
         CPUKernelAOS.fluidParamBuffer.CopyFrom(fluidParamArr);
         CPUKernelAOS.scalingFactorsBuffer.CopyFrom(scalingFactorsArr);
         CPUKernelAOS.offsets2DBuffer.CopyFrom(CPUKernelAOS.offsets);
@@ -708,13 +708,14 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
     
     public void runCPUComputeTest(){
         ThreadPool.GetAvailableThreads(out int availableWorkerThreads, out int availableCompletionPortThreads);
-        int batch_size = 1000;//Math.Max(1, numParticles / availableWorkerThreads);
-        // keyarrbuffer.GetData(CPUKernelAOS.keyarr);
-        // CPUKernelAOS.keyarrbuffer.CopyFrom(CPUKernelAOS.keyarr);
-        // spatialIndices.GetData(CPUKernelAOS.spatialIndices);
-        // CPUKernelAOS.spatialIndicesBuffer.CopyFrom(CPUKernelAOS.spatialIndices);
-        // spatialOffsets.GetData(CPUKernelAOS.spatialOffsets);
-        // CPUKernelAOS.spatialOffsetsBuffer.CopyFrom(CPUKernelAOS.spatialOffsets);
+        int batch_size = Math.Max(1, numParticles / availableWorkerThreads);
+
+        keyarrbuffer.GetData(CPUKernelAOS.keyarr);
+        CPUKernelAOS.keyarrbuffer.CopyFrom(CPUKernelAOS.keyarr);
+        spatialIndices.GetData(CPUKernelAOS.spatialIndices);
+        CPUKernelAOS.spatialIndicesBuffer.CopyFrom(CPUKernelAOS.spatialIndices);
+        spatialOffsets.GetData(CPUKernelAOS.spatialOffsets);
+        CPUKernelAOS.spatialOffsetsBuffer.CopyFrom(CPUKernelAOS.spatialOffsets);
         
         //create each job type and assign the buffers to the jobs
         CPUDensityCalcAoS densitycalc = new CPUDensityCalcAoS{
@@ -769,40 +770,40 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
             maxSmoothingRadius = maxSmoothingRadius
         };
 
-        sortIndices sortind = new sortIndices{
-            spatialIndices = CPUKernelAOS.spatialIndicesBuffer
-        };
+        // sortIndices sortind = new sortIndices{
+        //     spatialIndices = CPUKernelAOS.spatialIndicesBuffer
+        // };
 
-        sortOffsets sortOff = new sortOffsets{
-            spatialIndices = CPUKernelAOS.spatialIndicesBuffer,
-            spatialOffsets = CPUKernelAOS.spatialOffsetsBuffer,
-            numParticles = (uint) numParticles,
-            sortedKeys = CPUKernelAOS.keyarrbuffer
-        };
+        // sortOffsets sortOff = new sortOffsets{
+        //     spatialIndices = CPUKernelAOS.spatialIndicesBuffer,
+        //     spatialOffsets = CPUKernelAOS.spatialOffsetsBuffer,
+        //     numParticles = (uint) numParticles,
+        //     sortedKeys = CPUKernelAOS.keyarrbuffer
+        // };
 
-        sortPops sortkeypops = new sortPops{
-            keyarr = CPUKernelAOS.keyarrbuffer
-        };
+        // sortPops sortkeypops = new sortPops{
+        //     keyarr = CPUKernelAOS.keyarrbuffer
+        // };
 
         particleBuffer.GetData(CPUKernelAOS.particles);
         CPUKernelAOS.particleBuffer.CopyFrom(CPUKernelAOS.particles);
         CPUKernelAOS.particleResultBuffer.CopyFrom(CPUKernelAOS.particles);
 
-        JobHandle spatialHashJob = spatialHash.Schedule(numParticles, batch_size);
-        ComputeHelper.Dispatch(compute, numParticles, kernelIndex: spatialHashKernel);
-        spatialHashJob.Complete();
+        // JobHandle spatialHashJob = spatialHash.Schedule(numParticles, batch_size);
+        // ComputeHelper.Dispatch(compute, numParticles, kernelIndex: spatialHashKernel);
+        // spatialHashJob.Complete();
 
-        JobHandle sortIndJob = sortind.Schedule();
-        gpuSort.Sort();
-        sortIndJob.Complete();
+        // JobHandle sortIndJob = sortind.Schedule();
+        // gpuSort.Sort();
+        // sortIndJob.Complete();
 
-        JobHandle sortOffJob = sortOff.Schedule();
-        gpuSort.sortOffsets();
-        sortOffJob.Complete();
+        // JobHandle sortOffJob = sortOff.Schedule();
+        // gpuSort.sortOffsets();
+        // sortOffJob.Complete();
 
-        JobHandle sortPopsJob = sortkeypops.Schedule();
-        gpuSort.SortPops();
-        sortPopsJob.Complete();
+        // JobHandle sortPopsJob = sortkeypops.Schedule();
+        // gpuSort.SortPops();
+        // sortPopsJob.Complete();
         //ThreadPool.GetAvailableThreads(out availableWorkerThreads, out availableCompletionPortThreads);
         //Create the threads to calculate either density, pressure, or velocity
         JobHandle density = densitycalc.Schedule(numParticles, batch_size);
