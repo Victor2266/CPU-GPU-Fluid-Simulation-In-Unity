@@ -2,6 +2,7 @@ using UnityEngine;
 using Unity.Mathematics;
 using System.Runtime.InteropServices;
 using System;
+using UnityEngine.SceneManagement;
 
 //Defining Structs
 /*[System.Serializable]
@@ -115,6 +116,8 @@ public class Simulation2D : MonoBehaviour, IFluidSimulation
 
     ComputeBuffer keyarrbuffer;
 
+    private bool reloadRequest = false;
+
     void Start()
     {
         Debug.Log("If hotkeys are enabled, Controls: Space = Play/Pause, R = Reset, LMB = Attract, RMB = Repel");
@@ -177,10 +180,13 @@ public class Simulation2D : MonoBehaviour, IFluidSimulation
         {
             RunSimulationFrame(Time.fixedDeltaTime);
         }
+
+        checkforReloadRequest();
     }
 
     void Update()
     {
+        checkforReloadRequest();
         // Run simulation if not in fixed timestep mode
         // (skip running for first few frames as deltaTime can be disproportionaly large)
         if (!fixedTimeStep && Time.frameCount > 10)
@@ -198,6 +204,8 @@ public class Simulation2D : MonoBehaviour, IFluidSimulation
     
         if (enableHotkeys)
             HandleInput();
+
+        checkforReloadRequest();
     }
 
     void RunSimulationFrame(float frameTime)
@@ -475,5 +483,19 @@ public class Simulation2D : MonoBehaviour, IFluidSimulation
     public float GetInteractionRadius()
     {
         return interactionRadius;
+    }
+
+    void checkforReloadRequest(){
+        if(reloadRequest){
+            Destroy(this);
+            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        }
+    }
+    public void requestReload(){
+        reloadRequest = true;
+    }
+
+    public bool getReloadRequest(){
+        return reloadRequest;
     }
 }

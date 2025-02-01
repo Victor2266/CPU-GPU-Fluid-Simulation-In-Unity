@@ -37,13 +37,13 @@ public class PlayerController2D : MonoBehaviour
     void FixedUpdate()
     {
         // Apply horizontal movement to the player
-        rb.velocity = new Vector2(horizontalInput * moveSpeed, rb.velocity.y);
+        rb.linearVelocity = new Vector2(horizontalInput * moveSpeed, rb.linearVelocity.y);
     }
 
     // Method to apply jump force
     private void Jump()
     {
-        rb.velocity = new Vector2(rb.velocity.x, jumpForce);
+        rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
     }
 
     // Visualize the ground check radius in the scene view

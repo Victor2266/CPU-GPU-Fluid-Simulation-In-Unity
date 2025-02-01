@@ -6,6 +6,7 @@ using UnityEngine.UIElements;
 using System.Linq;
 using Unity.Collections;
 using Unity.Jobs;
+using UnityEngine.SceneManagement;
 
 
 public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
@@ -135,6 +136,8 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
     ComputeBuffer keyarrbuffer;
     public uint ThreadBatchSize = 50;
     public uint numCPUKeys = 10;
+
+    private bool reloadRequest = false;
     void Start()
     { 
         Debug.Log("Controls: Space = Play/Pause, R = Reset, LMB = Attract, RMB = Repel");
@@ -255,6 +258,7 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
 
     void Update()
     {
+        checkforReloadRequest();
         // Run simulation in fixed timestep mode
         // It will make number of simulation steps more consistent accross different frame rates
         // (it will be perfectly consistent down to 30fps)
@@ -292,6 +296,8 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
         UpdateColliderData();
         if (enableHotkeys)
             HandleHotkeysInput();
+            
+        checkforReloadRequest();
     }
 
     void RunSimulationFrame(float frameTime)
@@ -806,5 +812,19 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
         CPUKernelAOS.offsets2DBuffer.Dispose();
         CPUKernelAOS.particleResultBuffer.Dispose();
         CPUKernelAOS.keyarrbuffer.Dispose();
+    }
+
+    void checkforReloadRequest(){
+        if(reloadRequest){
+            Destroy(this);
+            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        }
+    }
+    public void requestReload(){
+        reloadRequest = true;
+    }
+
+    public bool getReloadRequest(){
+        return reloadRequest;
     }
 }

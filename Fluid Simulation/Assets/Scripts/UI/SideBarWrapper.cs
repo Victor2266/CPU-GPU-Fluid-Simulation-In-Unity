@@ -86,6 +86,6 @@ public class SideBarWrapper : MonoBehaviour
     }
 
     public void ReloadScene(){
-        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        simulation2DScript.requestReload();
     }
 }

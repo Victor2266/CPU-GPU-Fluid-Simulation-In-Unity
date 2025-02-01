@@ -60,4 +60,15 @@ public interface IFluidSimulation
     /// Get interaction radius
     /// </summary>
     float GetInteractionRadius();
+
+    /// <summary>
+    /// Requests reload of scene
+    /// </summary>
+    void requestReload();
+
+    /// <summary>
+    /// checks for a reload request
+    /// </summary>
+    /// <returns></returns>
+    bool getReloadRequest();
 }

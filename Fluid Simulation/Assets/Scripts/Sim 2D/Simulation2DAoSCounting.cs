@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System;
 using UnityEngine.UIElements;
 using System.Linq;
+using UnityEngine.SceneManagement;
 
 
 public class Simulation2DAoSCounting : MonoBehaviour, IFluidSimulation
@@ -134,6 +135,7 @@ public class Simulation2DAoSCounting : MonoBehaviour, IFluidSimulation
     private const float MAX_DELTA_TIME = 1f / 30f; // Maximum allowed delta time
     private const float FIXED_TIME_STEP = 1f / 120f; // Your desired fixed time step
 
+    private bool reloadRequest = false;
     void Start()
     {
         // Debug.Log(System.Runtime.InteropServices.Marshal.SizeOf(typeof(SourceObjectInitializer))); //This prints the size of the typeof(struct)
@@ -278,6 +280,7 @@ public class Simulation2DAoSCounting : MonoBehaviour, IFluidSimulation
                 accumulatedTime -= FIXED_TIME_STEP;
             }
         } 
+        
         // In variable timestep mode, the delta time can vary, which slightly effects physics consistency across framerates
         // The number of simulation steps varies depending on the framerate 
         // Tabbing out has been fixed so it won't cause issues
@@ -292,7 +295,7 @@ public class Simulation2DAoSCounting : MonoBehaviour, IFluidSimulation
             isPaused = true;
             pauseNextFrame = false;
         }
-
+        
         UpdateColliderData();
         
         if (enableScrolling)
@@ -305,6 +308,8 @@ public class Simulation2DAoSCounting : MonoBehaviour, IFluidSimulation
             updateFluidsNextFrame = false;
             UpdateFluids();
         }
+
+        checkforReloadRequest();
     }
 
     void RunSimulationFrame(float frameTime)
@@ -591,43 +596,45 @@ public class Simulation2DAoSCounting : MonoBehaviour, IFluidSimulation
 
     void OnDrawGizmos()
     {
-        Gizmos.color = new Color(0, 1, 0, 0.4f);
-        Gizmos.DrawWireCube(Vector2.zero, boundsSize);
-        
-        // Draw all box colliders
-        if (boxColliders != null)
-        {
-            foreach (Transform boxCollider in boxColliders)
+        if(!getReloadRequest()){
+            Gizmos.color = new Color(0, 1, 0, 0.4f);
+            Gizmos.DrawWireCube(Vector2.zero, boundsSize);
+
+            // Draw all box colliders
+            if (boxColliders != null)
             {
-                if (boxCollider != null)
+                foreach (Transform boxCollider in boxColliders)
                 {
-                    Gizmos.DrawWireCube(boxCollider.position, boxCollider.localScale);
+                    if (boxCollider != null)
+                    {
+                        Gizmos.DrawWireCube(boxCollider.position, boxCollider.localScale);
+                    }
                 }
             }
-        }
 
-        // Draw all circle colliders
-        if (circleColliders != null)
-        {
-            foreach (Transform circleCollider in circleColliders)
+            // Draw all circle colliders
+            if (circleColliders != null)
             {
-                if (circleCollider != null)
+                foreach (Transform circleCollider in circleColliders)
                 {
-                    Gizmos.DrawWireSphere(circleCollider.position, circleCollider.localScale.x * 0.5f);
+                    if (circleCollider != null)
+                    {
+                        Gizmos.DrawWireSphere(circleCollider.position, circleCollider.localScale.x * 0.5f);
+                    }
                 }
             }
-        }
 
-        if (Application.isPlaying)
-        {
-            Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-            bool isPullInteraction = Input.GetMouseButton(0);
-            bool isPushInteraction = Input.GetMouseButton(1);
-            bool isInteracting = isPullInteraction || isPushInteraction;
-            if (isInteracting)
+            if (Application.isPlaying)
             {
-                Gizmos.color = isPullInteraction ? Color.green : Color.red;
-                Gizmos.DrawWireSphere(mousePos, interactionRadius);
+                Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+                bool isPullInteraction = Input.GetMouseButton(0);
+                bool isPushInteraction = Input.GetMouseButton(1);
+                bool isInteracting = isPullInteraction || isPushInteraction;
+                if (isInteracting)
+                {
+                    Gizmos.color = isPullInteraction ? Color.green : Color.red;
+                    Gizmos.DrawWireSphere(mousePos, interactionRadius);
+                }
             }
         }
 
@@ -696,5 +703,19 @@ public class Simulation2DAoSCounting : MonoBehaviour, IFluidSimulation
     public float GetInteractionRadius()
     {
         return interactionRadius;
+    }
+
+    void checkforReloadRequest(){
+        if(reloadRequest){
+            Destroy(this);
+            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        }
+    }
+    public void requestReload(){
+        reloadRequest = true;
+    }
+
+    public bool getReloadRequest(){
+        return reloadRequest;
     }
 }
