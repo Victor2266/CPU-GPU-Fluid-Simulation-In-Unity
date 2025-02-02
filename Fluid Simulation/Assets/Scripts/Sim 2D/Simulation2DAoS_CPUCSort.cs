@@ -119,8 +119,9 @@ public class Simulation2DAoS_CPUCSort : MonoBehaviour, IFluidSimulation
     const int densityKernel = 5;
     const int pressureKernel = 6;
     const int viscosityKernel = 7;
-    const int updatePositionKernel = 8;
-    const int mergeCPUParticlesKernel = 9; // For CPU-GPU
+    const int temperatureKernel = 8;
+    const int updatePositionKernel = 9;
+    const int mergeCPUParticlesKernel = 10; // For CPU-GPU
 
     // State
     bool isPaused;
@@ -243,11 +244,11 @@ public class Simulation2DAoS_CPUCSort : MonoBehaviour, IFluidSimulation
         atomicCounterBuffer.SetData(atomicCounter);
 
         // Init compute
-        ComputeHelper.SetBuffer(compute, fluidDataBuffer, "FluidDataSet", SpawnParticlesKernel, externalForcesKernel, densityKernel, pressureKernel, viscosityKernel, updatePositionKernel);
-        ComputeHelper.SetBuffer(compute, ScalingFactorsBuffer, "ScalingFactorsBuffer", densityKernel, pressureKernel, viscosityKernel);
-        ComputeHelper.SetBuffer(compute, particleBuffer, "Particles", SpawnParticlesKernel, externalForcesKernel, reorderKernel, reorderCopybackKernel, spatialHashKernel, densityKernel, pressureKernel, viscosityKernel, updatePositionKernel, mergeCPUParticlesKernel);
-        ComputeHelper.SetBuffer(compute, spatialIndices, "SpatialIndices", spatialHashKernel, densityKernel, pressureKernel, viscosityKernel);
-        ComputeHelper.SetBuffer(compute, spatialOffsets, "SpatialOffsets", spatialHashKernel, densityKernel, pressureKernel, viscosityKernel);
+        ComputeHelper.SetBuffer(compute, fluidDataBuffer, "FluidDataSet", SpawnParticlesKernel, externalForcesKernel, densityKernel, pressureKernel, viscosityKernel, temperatureKernel, updatePositionKernel);
+        ComputeHelper.SetBuffer(compute, ScalingFactorsBuffer, "ScalingFactorsBuffer", densityKernel, pressureKernel, viscosityKernel, temperatureKernel);
+        ComputeHelper.SetBuffer(compute, particleBuffer, "Particles", SpawnParticlesKernel, externalForcesKernel, reorderKernel, reorderCopybackKernel, spatialHashKernel, densityKernel, pressureKernel, viscosityKernel, temperatureKernel, updatePositionKernel, mergeCPUParticlesKernel);
+        ComputeHelper.SetBuffer(compute, spatialIndices, "SpatialIndices", spatialHashKernel, densityKernel, pressureKernel, viscosityKernel, temperatureKernel);
+        ComputeHelper.SetBuffer(compute, spatialOffsets, "SpatialOffsets", spatialHashKernel, densityKernel, pressureKernel, viscosityKernel, temperatureKernel);
         ComputeHelper.SetBuffer(compute, sortedIndices, "SortedIndices", spatialHashKernel, reorderKernel, reorderCopybackKernel);
         ComputeHelper.SetBuffer(compute, sortedParticleBuffer, "SortedParticles", reorderKernel, reorderCopybackKernel);
         ComputeHelper.SetBuffer(compute, boxCollidersBuffer, "BoxColliders", updatePositionKernel);
@@ -363,6 +364,7 @@ public class Simulation2DAoS_CPUCSort : MonoBehaviour, IFluidSimulation
                 ComputeHelper.Dispatch(compute, numParticles, kernelIndex: densityKernel);
                 ComputeHelper.Dispatch(compute, numParticles, kernelIndex: pressureKernel);
                 ComputeHelper.Dispatch(compute, numParticles, kernelIndex: viscosityKernel);
+                ComputeHelper.Dispatch(compute, numParticles, kernelIndex: temperatureKernel);
             }
         }
         else
@@ -370,6 +372,7 @@ public class Simulation2DAoS_CPUCSort : MonoBehaviour, IFluidSimulation
             ComputeHelper.Dispatch(compute, numParticles, kernelIndex: densityKernel);
             ComputeHelper.Dispatch(compute, numParticles, kernelIndex: pressureKernel);
             ComputeHelper.Dispatch(compute, numParticles, kernelIndex: viscosityKernel);
+            ComputeHelper.Dispatch(compute, numParticles, kernelIndex: temperatureKernel);
         }
 
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: updatePositionKernel);
@@ -428,33 +431,14 @@ public class Simulation2DAoS_CPUCSort : MonoBehaviour, IFluidSimulation
     void UpdateSettings(float deltaTime)
     {
         compute.SetFloat("deltaTime", deltaTime);
-        //compute.SetFloat("gravity", gravity);
-        //compute.SetFloat("collisionDamping", collisionDamping);
-        //compute.SetFloat("smoothingRadius", smoothingRadius);
-        //compute.SetFloat("targetDensity", targetDensity);
-        //compute.SetFloat("pressureMultiplier", pressureMultiplier);
-        //compute.SetFloat("nearPressureMultiplier", nearPressureMultiplier);
-        //compute.SetFloat("viscosityStrength", viscosityStrength);
         compute.SetVector("boundsSize", boundsSize);
         compute.SetInt("numBoxColliders", boxColliders.Length);
         compute.SetInt("numCircleColliders", circleColliders.Length);
         compute.SetInt("numSourceObjs", sourceObjects.Length);
         compute.SetInt("numDrainObjs", drainObjects.Length);
-
         compute.SetInt("selectedFluidType", selectedFluid);
-
         compute.SetInt("edgeType", (int) edgeType);
-
         compute.SetInt("spawnRate", (int) spawnRate);
-
-        //These are now computed once at the start
-        /*
-        compute.SetFloat("Poly6ScalingFactor", 4 / (Mathf.PI * Mathf.Pow(currentFluid.smoothingRadius, 8)));
-        compute.SetFloat("SpikyPow3ScalingFactor", 10 / (Mathf.PI * Mathf.Pow(currentFluid.smoothingRadius, 5)));
-        compute.SetFloat("SpikyPow2ScalingFactor", 6 / (Mathf.PI * Mathf.Pow(currentFluid.smoothingRadius, 4)));
-        compute.SetFloat("SpikyPow3DerivativeScalingFactor", 30 / (Mathf.Pow(currentFluid.smoothingRadius, 5) * Mathf.PI));
-        compute.SetFloat("SpikyPow2DerivativeScalingFactor", 12 / (Mathf.Pow(currentFluid.smoothingRadius, 4) * Mathf.PI));
-        */
 
         if (sourceObjects.Length > 0)
         {
@@ -706,6 +690,17 @@ public class Simulation2DAoS_CPUCSort : MonoBehaviour, IFluidSimulation
             positions[i] = particleData[i].position;
         }
         return positions;
+    }
+    public float[] GetParticleTemps()
+    {
+        float[] temps = new float[numParticles];
+        particleBuffer.GetData(particleData);
+
+        for (int i = 0; i < numParticles; i++)
+        {
+            temps[i] = particleData[i].temperature;
+        }
+        return temps;
     }
     public int GetParticleCount()
     {

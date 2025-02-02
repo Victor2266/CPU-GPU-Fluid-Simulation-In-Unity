@@ -21,6 +21,7 @@ MonoBehaviour:
   nearPressureMultiplier: 500
   viscosityStrength: 1
   startTemperature: 22
+  thermalDiffusivity: 0.143
   visualParams:
     style: 0
     colorGradient:

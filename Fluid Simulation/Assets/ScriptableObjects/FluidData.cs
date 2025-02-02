@@ -32,6 +32,7 @@ public struct FluidParam
     public float nearPressureMultiplier;
     public float viscosityStrength;
     public float startTemperature;
+    public float thermalDiffusivity;
 };
 
 // These are calculated once based on the smoothing radius of each fluid
@@ -102,6 +103,7 @@ public class FluidData : ScriptableObject
     [Header("Thermal Properties")]
     [Tooltip("Starting temperature of the fluid")]
     public float startTemperature = 22f;
+    public float thermalDiffusivity = 0.143f;
 
     [Header("Visual Properties")]
     [Tooltip("Setup the look of the fluid")]
@@ -129,7 +131,8 @@ public class FluidData : ScriptableObject
             pressureMultiplier = pressureMultiplier,
             nearPressureMultiplier = nearPressureMultiplier,
             viscosityStrength = viscosityStrength,
-            startTemperature = startTemperature
+            startTemperature = startTemperature,
+            thermalDiffusivity = thermalDiffusivity
         };
         return fluidParams;
     }
