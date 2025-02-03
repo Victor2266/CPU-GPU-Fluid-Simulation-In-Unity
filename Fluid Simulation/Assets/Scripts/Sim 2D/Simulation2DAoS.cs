@@ -135,7 +135,7 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
     ComputeBuffer cpuparticlebuffer;
     ComputeBuffer keyarrbuffer;
     ComputeBuffer keypopsbuffer;
-    public uint2[] keypops;
+    public uint[] keypops;
     public uint numCPUKeys = 10;
     void Start()
     { 
@@ -247,7 +247,7 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
         compute.SetInt("spawnRate", (int) spawnRate);
         compute.SetInt("numCPUKeys", (int) numCPUKeys);
         keypopsbuffer = ComputeHelper.CreateStructuredBuffer<uint>(numParticles);
-        keypops = new uint2[numParticles];
+        keypops = new uint[numParticles];
 
         gpuSort = new();
         gpuSort.SetBuffers(spatialIndices, spatialOffsets, keyarrbuffer, keypopsbuffer);
@@ -838,6 +838,6 @@ public class Simulation2DAoS : MonoBehaviour, IFluidSimulation
         cpuparticlebuffer.SetData(CPUKernelAOS.particleResultBuffer);
         ComputeHelper.Dispatch(compute, numParticles, kernelIndex: mergeCPUParticlesKernel);
 
-        //CPUKernelAOS.keyarrbuffer.CopyTo(keypops);
+        keypopsbuffer.GetData(keypops);
     }
 }
